@@ -2,10 +2,12 @@ services:
   zeek1:
     build:
       context: ./
-      dockerfile: src/Dockerfile
+      dockerfile: ./src/Dockerfile
     cap_add:
       - NET_ADMIN
     network_mode: host
+    environment:
+      - CONTAINER_NAME=zeek1
     volumes:
       - ./src:/opt/src
       - ./config.yaml:/opt/config.yaml
