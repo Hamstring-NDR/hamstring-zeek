@@ -22,14 +22,14 @@
 <tr>
   <td><b>Continuous Integration</b></td>
   <td>
-    <a href="https://github.com/stefanDeveloper/heiDGAF/actions/workflows/build_test_linux.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/stefanDeveloper/heiDGAF/build_test_linux.yml?branch=main&logo=linux&style=for-the-badge&label=linux" alt="Linux WorkFlows" />
+    <a href="https://github.com/Hamstring-NDR/hamstring-zeek/actions/workflows/build_test_linux.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/Hamstring-NDR/hamstring-zeek/build_test_linux.yml?branch=main&logo=linux&style=for-the-badge&label=linux" alt="Linux WorkFlows" />
     </a>
-    <a href="https://github.com/stefanDeveloper/heiDGAF/actions/workflows/build_test_macos.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/stefanDeveloper/heiDGAF/build_test_macos.yml?branch=main&logo=apple&style=for-the-badge&label=macos" alt="MacOS WorkFlows" />
+    <a href="https://github.com/Hamstring-NDR/hamstring-zeek/actions/workflows/build_test_macos.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/Hamstring-NDR/hamstring-zeek/build_test_macos.yml?branch=main&logo=apple&style=for-the-badge&label=macos" alt="MacOS WorkFlows" />
     </a>
-    <a href="https://github.com/stefanDeveloper/heiDGAF/actions/workflows/build_test_windows.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/stefanDeveloper/heiDGAF/build_test_windows.yml?branch=main&logo=windows&style=for-the-badge&label=windows" alt="Windows WorkFlows" />
+    <a href="https://github.com/Hamstring-NDR/hamstring-zeek/actions/workflows/build_test_windows.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/Hamstring-NDR/hamstring-zeek/build_test_windows.yml?branch=main&logo=windows&style=for-the-badge&label=windows" alt="Windows WorkFlows" />
     </a>
   </td>
 </tr>
