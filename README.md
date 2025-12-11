@@ -9,7 +9,7 @@
 <h3 align="center">Hamstring - Zeek</h3>
 
   <p align="center">
-    Zeek based module to ingest data in the main Hamstring application based on Apache Kafka queues.  
+    Zeek based module to ingest data in the main Hamstring application based on Apache Kafka queues.
     <br />
     <br>
     <a href="https://github.com/stefanDeveloper/heiDGAF/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
@@ -37,7 +37,7 @@
 
 <br>
 
-## Getting Started 
+## Getting Started
 
 #### Run hamstring's Zeek module using Docker Compose:
 
@@ -45,4 +45,4 @@
 HOST_IP=127.0.0.1 docker compose -f docker/docker-compose.yml --profile prod up
 ```
 
-Please note that in order for the module to work, you need to have an instance of Hamstring running. To do so, please refer to the [official hamstring repository](https://github.com/Hamstring-NDR/hamstring).  
+Please note that in order for the module to work, you need to have an instance of Hamstring running. To do so, please refer to the [official hamstring repository](https://github.com/Hamstring-NDR/hamstring).
