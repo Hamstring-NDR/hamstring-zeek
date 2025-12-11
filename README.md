@@ -42,7 +42,6 @@
 #### Run hamstring's Zeek module using Docker Compose:
 
 ```sh
-HOST_IP=127.0.0.1 docker compose -f docker/docker-compose.yml --profile prod up
+docker compose up
 ```
-
 Please note that in order for the module to work, you need to have an instance of Hamstring running. To do so, please refer to the [official hamstring repository](https://github.com/Hamstring-NDR/hamstring).
