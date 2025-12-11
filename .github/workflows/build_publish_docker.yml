@@ -7,10 +7,6 @@ on:
   pull_request:
     branches: [ "main" ]
 
-env:
-  REGISTRY: docker.io
-  IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/heidgaf
-
 jobs:
   build:
     name: Docker Zeek on ${{ matrix.os }}
@@ -42,7 +38,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5.5.1
         with:
-          images: ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}-zeek
+          images: ghcr.io/${{ github.repository_owner }}/hamstring-zeek
 
       - name: Build and push Docker image (${{ steps.meta.outputs.tags }})
         if: github.event_name != 'pull_request' && contains(github.ref, '/tags/v')
@@ -62,5 +58,5 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           file: ./Dockerfile
           tags: |
-             ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}-zeek
+             ghcr.io/${{ github.repository_owner }}/hamstring-zeek
           labels: ${{ steps.meta.outputs.labels }}
