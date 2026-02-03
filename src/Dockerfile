@@ -1,18 +1,30 @@
-FROM zeek/zeek:latest
+FROM zeek/zeek:8.0
 
 RUN apt update -y && apt upgrade -y
 RUN apt install -y \
     build-essential \
     cmake \
+    curl \
     librdkafka-dev \
     libssl-dev \
     libpcap-dev \
     vim \
+    pkg-config \
     iproute2 \
     python3-pip
 
+# download and install librdafka v1.4.4
+RUN curl -fsSL https://github.com/edenhill/librdkafka/archive/refs/tags/v1.4.4.tar.gz -o /tmp/librdkafka.tar.gz \
+    && tar -xzf /tmp/librdkafka.tar.gz -C /tmp \
+    && cd /tmp/librdkafka-1.4.4 \
+    && ./configure --prefix=/usr/local \
+    && make -j"$(nproc)" \
+    && make install \
+    && ldconfig \
+    && rm -rf /tmp/librdkafka-1.4.4 /tmp/librdkafka.tar.gz
+
 # install the zeek kafka plugin
-RUN yes | zkg install zeek-kafka --user-var LIBRDKAFKA_ROOT=/usr/local
+RUN yes | zkg install seisollc/zeek-kafka --version v1.2.0 --user-var LIBRDKAFKA_ROOT=/usr/local
 RUN setcap cap_net_raw,cap_net_admin=+eip $(which zeek)
 
 RUN rm /usr/lib/python3.13/EXTERNALLY-MANAGED
