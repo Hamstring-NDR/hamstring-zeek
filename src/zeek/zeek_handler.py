@@ -88,7 +88,7 @@ def setup_zeek(configuration_file_path, zeek_config_location, network_interface)
 
     if zeek_config_location is None:
         zeek_config_location = default_zeek_config_location
-        
+
     zeekConfigHandler = ZeekConfigurationHandler(data, zeek_config_location)
     zeekConfigHandler.configure()
     logger.info("configured zeek")
@@ -98,7 +98,7 @@ def setup_zeek(configuration_file_path, zeek_config_location, network_interface)
     if network_interface is not None:
         zeekConfigHandler.is_analysis_static = True
         zeekConfigHandler.network_interfaces = network_interface
-    
+
     logger.info("starting analysis...")
     zeekAnalysisHandler.start_analysis(zeekConfigHandler.is_analysis_static)
 
