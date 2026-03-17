@@ -31,9 +31,12 @@ RUN rm /usr/lib/python3.13/EXTERNALLY-MANAGED
 COPY requirements/requirements.zeek.txt /opt/requirements.txt
 RUN pip3 install -r /opt/requirements.txt
 
+COPY ./src /opt/src
+
 RUN chown -R root:root /usr/local/zeek
 RUN mkdir /opt/logs
 WORKDIR /opt/logs
+
 
 RUN mkdir "/opt/static_files"
 ENV STATIC_FILES_DIR="/opt/static_files"

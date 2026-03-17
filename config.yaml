@@ -10,6 +10,7 @@ pipeline:
         static_analysis: true
         protocols:
           - dns
+          - http
         interfaces:
           - enp2s0f0
 

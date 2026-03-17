@@ -39,24 +39,18 @@ jobs:
         uses: docker/metadata-action@v5.5.1
         with:
           images: ghcr.io/hamstring-ndr/hamstring-zeek
+          tags: |
+            type=raw,value=latest
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
 
-      - name: Build and push Docker image (${{ steps.meta.outputs.tags }})
-        if: github.event_name != 'pull_request' && contains(github.ref, '/tags/v')
+      - name: Build and push Docker image
+        if: github.event_name != 'pull_request'
         uses: docker/build-push-action@v6
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
           file: ./src/Dockerfile
-          tags: |
-            "${{ steps.meta.outputs.tags }}"
-          labels: ${{ steps.meta.outputs.labels }}
-
-      - name: Build and push Docker image (latest)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          file: ./src/Dockerfile
-          tags: |
-             ghcr.io/hamstring-ndr/hamstring-zeek
+          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

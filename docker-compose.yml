@@ -9,6 +9,5 @@ services:
     environment:
       - CONTAINER_NAME=zeek1
     volumes:
-      - ./src:/opt/src
       - ./config.yaml:/opt/config.yaml
       - ./data/test_pcaps/:/opt/static_files

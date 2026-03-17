@@ -28,7 +28,15 @@ logger = get_logger("zeek.sensor")
         "Overrides the default configuration location of Zeek under /usr/local/zeek/share/zeek/site/local.zeek"
     ),
 )
-def setup_zeek(configuration_file_path, zeek_config_location):
+@click.option(
+    "-i",
+    "--interface",
+    "network_interface",
+    help=(
+        "Starts Zeek in network analysis mode on the specified network interface. If not provided, Zeek willl determine runmode based on the config file. If provided, this cli option will alawys takes precendence over the config file."
+    ),
+)
+def setup_zeek(configuration_file_path, zeek_config_location, network_interface):
     """
     Configure and start Zeek analysis based on pipeline configuration.
 
@@ -80,15 +88,17 @@ def setup_zeek(configuration_file_path, zeek_config_location):
 
     if zeek_config_location is None:
         zeek_config_location = default_zeek_config_location
-        zeekConfigHandler = ZeekConfigurationHandler(data, default_zeek_config_location)
-    else:
-        zeekConfigHandler = ZeekConfigurationHandler(data, zeek_config_location)
-
+        
+    zeekConfigHandler = ZeekConfigurationHandler(data, zeek_config_location)
     zeekConfigHandler.configure()
     logger.info("configured zeek")
     zeekAnalysisHandler = ZeekAnalysisHandler(
         zeek_config_location, zeekConfigHandler.zeek_log_location
     )
+    if network_interface is not None:
+        zeekConfigHandler.is_analysis_static = True
+        zeekConfigHandler.network_interfaces = network_interface
+    
     logger.info("starting analysis...")
     zeekAnalysisHandler.start_analysis(zeekConfigHandler.is_analysis_static)
 
