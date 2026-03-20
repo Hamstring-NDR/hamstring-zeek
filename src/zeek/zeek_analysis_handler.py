@@ -20,7 +20,7 @@ class ZeekAnalysisHandler:
 
     """
 
-    def __init__(self, zeek_config_location: str, zeek_log_location: str):
+    def __init__(self, zeek_config_location: str, zeek_log_location: str, pcap_file: str = None):
         """
         Initialize the Zeek analysis handler with configuration and log locations.
 
@@ -36,6 +36,7 @@ class ZeekAnalysisHandler:
         """
         self.zeek_log_location = zeek_log_location
         self.zeek_config_location = zeek_config_location
+        self.pcap_file = pcap_file
 
     def start_analysis(self, static_analysis: bool):
         """
@@ -69,8 +70,11 @@ class ZeekAnalysisHandler:
         files and output the results to the configured destinations (typically Kafka
         via the Zeek Kafka plugin).
         """
-        self.static_files_dir = os.getenv("STATIC_FILES_DIR")
-        files = glob.glob(f"{self.static_files_dir}/*.pcap")
+        if self.pcap_file:
+            files = [self.pcap_file]
+        else:    
+            self.static_files_dir = os.getenv("STATIC_FILES_DIR")
+            files = glob.glob(f"{self.static_files_dir}/*.pcap")
         threads = []
         for file in files:
             logger.info(f"Starting Analysis for file {file}...")

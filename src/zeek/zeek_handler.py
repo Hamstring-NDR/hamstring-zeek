@@ -36,7 +36,15 @@ logger = get_logger("zeek.sensor")
         "Starts Zeek in network analysis mode on the specified network interface. If not provided, Zeek willl determine runmode based on the config file. If provided, this cli option will alawys takes precendence over the config file."
     ),
 )
-def setup_zeek(configuration_file_path, zeek_config_location, network_interface):
+@click.option(
+    "-f",
+    "--file",
+    "pcap_file",
+    help=(
+        "Absolute path to one pcap file. Starts Zeek in static analysis mode and ingests the provided pcap file. If no file is selected, the STATIC_PCAP path is used instead. If not provided, Zeek willl determine runmode based on the config file."
+    ),
+)
+def setup_zeek(configuration_file_path, zeek_config_location, network_interface=None, pcap_file=None):
     """
     Configure and start Zeek analysis based on pipeline configuration.
 
@@ -66,6 +74,11 @@ def setup_zeek(configuration_file_path, zeek_config_location, network_interface)
         yaml.YAMLError: If the configuration file is not valid YAML
         Exception: If required environment variables (like CONTAINER_NAME) are missing
     """
+    if network_interface and pcap_file:
+        raise click.UsageError(
+            "Options --interface and --file are mutually exclusive."
+        )
+        
     default_zeek_config_location = "/usr/local/zeek/share/zeek/site/local.zeek"
     default_zeek_config_backup_location = "/opt/local.zeek_backup"
     initial_zeek_setup: bool = (
@@ -90,14 +103,18 @@ def setup_zeek(configuration_file_path, zeek_config_location, network_interface)
         zeek_config_location = default_zeek_config_location
 
     zeekConfigHandler = ZeekConfigurationHandler(data, zeek_config_location)
+    if network_interface is not None:
+        zeekConfigHandler.is_analysis_static = False
+        zeekConfigHandler.network_interfaces = [network_interface]
+        
+    elif pcap_file is not None:
+        zeekConfigHandler.is_analysis_static = True
+    # if none of both than the already configured yaml takes precedence  
     zeekConfigHandler.configure()
     logger.info("configured zeek")
     zeekAnalysisHandler = ZeekAnalysisHandler(
-        zeek_config_location, zeekConfigHandler.zeek_log_location
+        zeek_config_location, zeekConfigHandler.zeek_log_location, pcap_file
     )
-    if network_interface is not None:
-        zeekConfigHandler.is_analysis_static = True
-        zeekConfigHandler.network_interfaces = network_interface
 
     logger.info("starting analysis...")
     zeekAnalysisHandler.start_analysis(zeekConfigHandler.is_analysis_static)

@@ -53,7 +53,7 @@ class TestZeekHandler(unittest.TestCase):
 
         mock_config_handler_cls.return_value.configure.assert_called_once()
         mock_analysis_handler.assert_called_once_with(
-            "/mock/zeek.cfg", mock_config_handler_obj.zeek_log_location
+            "/mock/zeek.cfg", mock_config_handler_obj.zeek_log_location, None
         )
         mock_analysis.start_analysis.assert_called_once_with(
             mock_config_handler_obj.is_analysis_static
@@ -154,6 +154,7 @@ class TestZeekHandler(unittest.TestCase):
         mock_analysis_handler.assert_called_once_with(
             "/usr/local/zeek/share/zeek/site/local.zeek",
             mock_config_handler_obj.zeek_log_location,
+            None,
         )
 
     @patch("src.zeek.zeek_handler.ZeekConfigurationHandler")
@@ -190,8 +191,48 @@ class TestZeekHandler(unittest.TestCase):
 
         # Verify the analysis handler was initialized with the custom location
         mock_analysis_handler.assert_called_once_with(
-            "/custom/zeek.cfg", mock_config_handler_obj.zeek_log_location
+            "/custom/zeek.cfg", mock_config_handler_obj.zeek_log_location, None
         )
+
+    @patch("src.zeek.zeek_handler.ZeekConfigurationHandler")
+    @patch("src.zeek.zeek_handler.ZeekAnalysisHandler")
+    @patch(
+        "builtins.open", new_callable=unittest.mock.mock_open, read_data="config_data"
+    )
+    @patch("shutil.copy2")
+    def test_setup_zeek_with_pcap_file(
+        self, mock_copy, mock_open, mock_analysis_handler, mock_config_handler_cls
+    ):
+        mock_config_handler_obj = MagicMock()
+        mock_config_handler_obj.zeek_log_location = "/mock/location.log"
+        mock_config_handler_obj.is_analysis_static = False
+        mock_config_handler_cls.return_value = mock_config_handler_obj
+
+        mock_analysis = MagicMock()
+        mock_analysis_handler.return_value = mock_analysis
+
+        runner = CliRunner()
+
+        result = runner.invoke(
+            setup_zeek,
+            [
+                "-c",
+                "/mock/config.yaml",
+                "--zeek-config-location",
+                "/mock/zeek.cfg",
+                "--file",
+                "/tmp/test.pcap",
+            ],
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertTrue(mock_config_handler_obj.is_analysis_static)
+        mock_analysis_handler.assert_called_once_with(
+            "/mock/zeek.cfg",
+            mock_config_handler_obj.zeek_log_location,
+            "/tmp/test.pcap",
+        )
+        mock_analysis.start_analysis.assert_called_once_with(True)
 
     @patch("src.zeek.zeek_handler.ZeekConfigurationHandler")
     @patch("src.zeek.zeek_handler.ZeekAnalysisHandler")
