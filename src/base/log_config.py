@@ -5,7 +5,11 @@ from typing import Dict, Any
 import colorlog
 import yaml
 
-CONFIG_FILEPATH = os.getenv("CONFIGURATION_DEFAULT_LOCATION") if os.getenv("CONFIGURATION_DEFAULT_LOCATION") else  os.path.join(os.path.dirname(__file__), "../../config.yaml")
+CONFIG_FILEPATH = (
+    os.getenv("CONFIGURATION_DEFAULT_LOCATION")
+    if os.getenv("CONFIGURATION_DEFAULT_LOCATION")
+    else os.path.join(os.path.dirname(__file__), "../../config.yaml")
+)
 
 # Global formatting for all loggers
 log_colors = {

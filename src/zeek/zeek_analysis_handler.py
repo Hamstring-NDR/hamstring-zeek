@@ -20,7 +20,9 @@ class ZeekAnalysisHandler:
 
     """
 
-    def __init__(self, zeek_config_location: str, zeek_log_location: str, pcap_file: str = None):
+    def __init__(
+        self, zeek_config_location: str, zeek_log_location: str, pcap_file: str = None
+    ):
         """
         Initialize the Zeek analysis handler with configuration and log locations.
 
@@ -72,7 +74,7 @@ class ZeekAnalysisHandler:
         """
         if self.pcap_file:
             files = [self.pcap_file]
-        else:    
+        else:
             self.static_files_dir = os.getenv("STATIC_FILES_DIR")
             files = glob.glob(f"{self.static_files_dir}/*.pcap")
         threads = []
