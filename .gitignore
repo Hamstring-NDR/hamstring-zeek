@@ -8,8 +8,6 @@ results/*
 *.so
 *.html
 *.csv
-*.json
-*.txt
 *.parquet
 .DS_Store
 
