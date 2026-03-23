@@ -9,6 +9,14 @@
 #include <thread>
 #include <vector>
 
+#ifdef _WIN32
+#define POPEN _popen
+#define PCLOSE _pclose
+#else
+#define POPEN popen
+#define PCLOSE pclose
+#endif
+
 namespace fs = std::filesystem;
 
 ZeekAnalysisHandler::ZeekAnalysisHandler(const std::string &zeek_config_location, const std::string &zeek_log_location,
@@ -82,7 +90,7 @@ void ZeekAnalysisHandler::startNetworkAnalysis() {
     // Replicating Python behavior: run tail -f /dev/null to keep container
     // running
     std::thread reader_thread([]() {
-        FILE *pipe = popen("tail -f /dev/null", "r");
+        FILE *pipe = POPEN("tail -f /dev/null", "r");
         if (!pipe) {
             spdlog::error("Failed to start tail process");
             return;
@@ -91,7 +99,7 @@ void ZeekAnalysisHandler::startNetworkAnalysis() {
         while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
             std::cout << "[ZEEK LOG] " << buffer.data();
         }
-        pclose(pipe);
+        PCLOSE(pipe);
     });
 
     spdlog::info("network analysis ongoing");

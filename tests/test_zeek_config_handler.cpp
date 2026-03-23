@@ -11,12 +11,23 @@ namespace fs = std::filesystem;
 class ZeekConfigHandlerTest : public ::testing::Test {
   protected:
     void SetUp() override {
+#ifdef _WIN32
+        _putenv_s("CONTAINER_NAME", "ZEEK_TEST_CONTAINER");
+#else
         setenv("CONTAINER_NAME", "ZEEK_TEST_CONTAINER", 1);
+#endif
         test_dir = fs::temp_directory_path() / "zeek_test_dir_XXXXXX";
         // Create a unique temporary directory
+#ifdef _WIN32
+        std::string tpath = test_dir.string();
+        _mktemp_s(tpath.data(), tpath.size() + 1);
+        test_dir = tpath;
+        fs::create_directories(test_dir);
+#else
         std::string tpath = test_dir.string();
         char       *dt    = mkdtemp(tpath.data());
         test_dir          = dt;
+#endif
 
         fs::create_directories(test_dir / "additional_configs");
 
@@ -29,7 +40,11 @@ class ZeekConfigHandlerTest : public ::testing::Test {
 
     void TearDown() override {
         fs::remove_all(test_dir);
+#ifdef _WIN32
+        _putenv_s("CONTAINER_NAME", "");
+#else
         unsetenv("CONTAINER_NAME");
+#endif
     }
 
     YAML::Node createMockConfig(bool static_analysis) {
