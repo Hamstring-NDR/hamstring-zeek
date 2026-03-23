@@ -11,6 +11,10 @@ find_package(spdlog CONFIG REQUIRED)
 find_package(cxxopts CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 
+# Threads
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
 # Executable
 add_executable(hamstring_zeek
     src/main.cpp
@@ -25,7 +29,7 @@ target_link_libraries(hamstring_zeek PRIVATE
     yaml-cpp::yaml-cpp
     spdlog::spdlog
     cxxopts::cxxopts
-    pthread
+    Threads::Threads
 )
 
 # Testing
@@ -44,7 +48,7 @@ target_link_libraries(hamstring_zeek_tests PRIVATE
     yaml-cpp::yaml-cpp
     spdlog::spdlog
     GTest::gtest_main
-    pthread
+    Threads::Threads
 )
 
 include(GoogleTest)

@@ -12,15 +12,11 @@ pipeline:
           - dns
           - http
         interfaces:
-          - enp2s0f0
+          - eth0
 
 environment:
   kafka_brokers:
-    - external_port: 8097
-      node_ip: 127.0.0.1
-    - external_port: 8098
-      node_ip: 127.0.0.1
-    - external_port: 8099
+    - external_port: 9092
       node_ip: 127.0.0.1
   kafka_topics_prefix:
     pipeline:

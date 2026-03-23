@@ -11,23 +11,12 @@ namespace fs = std::filesystem;
 class ZeekConfigHandlerTest : public ::testing::Test {
   protected:
     void SetUp() override {
-#ifdef _WIN32
-        _putenv_s("CONTAINER_NAME", "ZEEK_TEST_CONTAINER");
-#else
         setenv("CONTAINER_NAME", "ZEEK_TEST_CONTAINER", 1);
-#endif
         test_dir = fs::temp_directory_path() / "zeek_test_dir_XXXXXX";
         // Create a unique temporary directory
-#ifdef _WIN32
-        std::string tpath = test_dir.string();
-        _mktemp_s(tpath.data(), tpath.size() + 1);
-        test_dir = tpath;
-        fs::create_directories(test_dir);
-#else
         std::string tpath = test_dir.string();
         char       *dt    = mkdtemp(tpath.data());
         test_dir          = dt;
-#endif
 
         fs::create_directories(test_dir / "additional_configs");
 
@@ -40,17 +29,13 @@ class ZeekConfigHandlerTest : public ::testing::Test {
 
     void TearDown() override {
         fs::remove_all(test_dir);
-#ifdef _WIN32
-        _putenv_s("CONTAINER_NAME", "");
-#else
         unsetenv("CONTAINER_NAME");
-#endif
     }
 
     YAML::Node createMockConfig(bool static_analysis) {
         YAML::Node config;
-        config["environment"]["kafka_brokers"][0]["node_ip"]                     = "192.168.175.69";
-        config["environment"]["kafka_brokers"][0]["external_port"]               = "8097";
+        config["environment"]["kafka_brokers"][0]["node_ip"]                     = "127.0.0.1";
+        config["environment"]["kafka_brokers"][0]["external_port"]               = "9092";
         config["environment"]["kafka_topics_prefix"]["pipeline"]["logserver_in"] = "pipeline-logserver_in";
 
         YAML::Node sensor = config["pipeline"]["zeek"]["sensors"]["ZEEK_TEST_CONTAINER"];
@@ -61,7 +46,7 @@ class ZeekConfigHandlerTest : public ::testing::Test {
             sensor["static_analysis"] = true;
         } else {
             sensor["static_analysis"] = false;
-            sensor["interfaces"].push_back("enx84ba5960ffe6");
+            sensor["interfaces"].push_back("eth0");
         }
         return config;
     }
@@ -89,7 +74,7 @@ TEST_F(ZeekConfigHandlerTest, InitializationNetworkAnalysis) {
     EXPECT_FALSE(handler.isAnalysisStatic());
     auto interfaces = handler.getNetworkInterfaces();
     ASSERT_EQ(interfaces.size(), 1);
-    EXPECT_EQ(interfaces[0], "enx84ba5960ffe6");
+    EXPECT_EQ(interfaces[0], "eth0");
 }
 
 TEST_F(ZeekConfigHandlerTest, ConfigureIntegration) {
@@ -110,5 +95,5 @@ TEST_F(ZeekConfigHandlerTest, ConfigureIntegration) {
     EXPECT_TRUE(content.find("@load custom-script") != std::string::npos);
     EXPECT_TRUE(content.find("@load packages/zeek-kafka") != std::string::npos);
     EXPECT_TRUE(content.find("pipeline-logserver_in-http") != std::string::npos);
-    EXPECT_TRUE(content.find("192.168.175.69:8097") != std::string::npos);
+    EXPECT_TRUE(content.find("127.0.0.1:9092") != std::string::npos);
 }
