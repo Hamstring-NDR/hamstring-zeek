@@ -1,24 +1,20 @@
 #include "ZeekAnalysisHandler.hpp"
-#include <spdlog/spdlog.h>
-#include <thread>
-#include <vector>
+
+#include <array>
+#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
-#include <cstdio>
-#include <array>
+#include <spdlog/spdlog.h>
+#include <thread>
+#include <vector>
 
 namespace fs = std::filesystem;
 
-ZeekAnalysisHandler::ZeekAnalysisHandler(
-    const std::string& zeek_config_location,
-    const std::string& zeek_log_location,
-    const std::string& pcap_file)
-    : zeek_config_location(zeek_config_location),
-      zeek_log_location(zeek_log_location),
-      pcap_file(pcap_file)
-{
-    const char* env_dir = std::getenv("STATIC_FILES_DIR");
+ZeekAnalysisHandler::ZeekAnalysisHandler(const std::string &zeek_config_location, const std::string &zeek_log_location,
+                                         const std::string &pcap_file)
+    : zeek_config_location(zeek_config_location), zeek_log_location(zeek_log_location), pcap_file(pcap_file) {
+    const char *env_dir = std::getenv("STATIC_FILES_DIR");
     if (env_dir) {
         static_files_dir = env_dir;
     } else {
@@ -38,12 +34,12 @@ void ZeekAnalysisHandler::startAnalysis(bool is_static_analysis) {
 
 void ZeekAnalysisHandler::startStaticAnalysis() {
     std::vector<std::string> files;
-    
+
     if (!pcap_file.empty()) {
         files.push_back(pcap_file);
     } else {
         if (fs::exists(static_files_dir) && fs::is_directory(static_files_dir)) {
-            for (const auto& entry : fs::directory_iterator(static_files_dir)) {
+            for (const auto &entry : fs::directory_iterator(static_files_dir)) {
                 if (entry.path().extension() == ".pcap") {
                     files.push_back(entry.path().string());
                 }
@@ -52,23 +48,23 @@ void ZeekAnalysisHandler::startStaticAnalysis() {
     }
 
     std::vector<std::thread> threads;
-    for (const auto& file : files) {
+    for (const auto &file : files) {
         spdlog::info("Starting Analysis for file {}...", file);
         threads.emplace_back([file, this]() {
             std::string command = "zeek -C -r " + file + " " + zeek_config_location;
-            int ret = std::system(command.c_str());
+            int         ret     = std::system(command.c_str());
             if (ret != 0) {
                 spdlog::error("Zeek static analysis failed for file: {}", file);
             }
         });
     }
 
-    for (auto& t : threads) {
+    for (auto &t : threads) {
         if (t.joinable()) {
             t.join();
         }
     }
-    
+
     spdlog::info("Finished static analyses");
 }
 
@@ -83,9 +79,10 @@ void ZeekAnalysisHandler::startNetworkAnalysis() {
 
     spdlog::info("network analysis started");
 
-    // Replicating Python behavior: run tail -f /dev/null to keep container running
+    // Replicating Python behavior: run tail -f /dev/null to keep container
+    // running
     std::thread reader_thread([]() {
-        FILE* pipe = popen("tail -f /dev/null", "r");
+        FILE *pipe = popen("tail -f /dev/null", "r");
         if (!pipe) {
             spdlog::error("Failed to start tail process");
             return;
@@ -101,6 +98,6 @@ void ZeekAnalysisHandler::startNetworkAnalysis() {
     if (reader_thread.joinable()) {
         reader_thread.join();
     }
-    
+
     spdlog::info("network analysis stopped");
 }

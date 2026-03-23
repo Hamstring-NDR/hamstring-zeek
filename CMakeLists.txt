@@ -21,7 +21,7 @@ add_executable(hamstring_zeek
 target_include_directories(hamstring_zeek PRIVATE src)
 
 # Link Libraries
-target_link_libraries(hamstring_zeek PRIVATE 
+target_link_libraries(hamstring_zeek PRIVATE
     yaml-cpp::yaml-cpp
     spdlog::spdlog
     cxxopts::cxxopts

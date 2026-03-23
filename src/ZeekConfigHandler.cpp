@@ -1,28 +1,26 @@
 #include "ZeekConfigHandler.hpp"
-#include <iostream>
-#include <fstream>
+
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
+#include <iostream>
 
 namespace fs = std::filesystem;
 
-ZeekConfigurationHandler::ZeekConfigurationHandler(
-    const YAML::Node& config_node,
-    const std::string& zeek_config_location,
-    const std::string& zeek_node_config_template,
-    const std::string& zeek_log_location,
-    const std::string& additional_configurations)
-    : base_config_location(zeek_config_location),
-      additional_configurations(additional_configurations),
-      zeek_node_config_template(zeek_node_config_template),
-      zeek_node_config_path("/usr/local/zeek/etc/node.cfg"),
-      zeek_log_location(zeek_log_location)
-{
+ZeekConfigurationHandler::ZeekConfigurationHandler(const YAML::Node  &config_node,
+                                                   const std::string &zeek_config_location,
+                                                   const std::string &zeek_node_config_template,
+                                                   const std::string &zeek_log_location,
+                                                   const std::string &additional_configurations)
+    : base_config_location(zeek_config_location), additional_configurations(additional_configurations),
+      zeek_node_config_template(zeek_node_config_template), zeek_node_config_path("/usr/local/zeek/etc/node.cfg"),
+      zeek_log_location(zeek_log_location) {
     spdlog::info("Setting up Zeek configuration...");
 
-    const char* container_env = std::getenv("CONTAINER_NAME");
+    const char *container_env = std::getenv("CONTAINER_NAME");
     if (!container_env) {
-        spdlog::error("CONTAINER_NAME ENV variable could not be found. Aborting configuration...");
+        spdlog::error("CONTAINER_NAME ENV variable could not be found. Aborting "
+                      "configuration...");
         throw std::runtime_error("CONTAINER_NAME env. variable not found.");
     }
     container_name = container_env;
@@ -33,8 +31,8 @@ ZeekConfigurationHandler::ZeekConfigurationHandler(
     }
 
     auto brokers_node = env_node["kafka_brokers"];
-    for (const auto& broker : brokers_node) {
-        std::string ip = broker["node_ip"].as<std::string>();
+    for (const auto &broker : brokers_node) {
+        std::string ip   = broker["node_ip"].as<std::string>();
         std::string port = broker["external_port"].as<std::string>();
         kafka_brokers.push_back(ip + ":" + port);
     }
@@ -42,7 +40,7 @@ ZeekConfigurationHandler::ZeekConfigurationHandler(
     kafka_topic_prefix = env_node["kafka_topics_prefix"]["pipeline"]["logserver_in"].as<std::string>();
 
     auto pipeline_node = config_node["pipeline"];
-    auto sensors_node = pipeline_node["zeek"]["sensors"];
+    auto sensors_node  = pipeline_node["zeek"]["sensors"];
     auto sensor_config = sensors_node[container_name];
 
     if (!sensor_config) {
@@ -54,15 +52,17 @@ ZeekConfigurationHandler::ZeekConfigurationHandler(
     } else {
         is_analysis_static = false;
         try {
-            for (const auto& iface : sensor_config["interfaces"]) {
+            for (const auto &iface : sensor_config["interfaces"]) {
                 network_interfaces.push_back(iface.as<std::string>());
             }
-        } catch (const std::exception& e) {
-            spdlog::error("Could not parse configuration for zeek sensor, 'interfaces' parameter missing or invalid: {}", e.what());
+        } catch (const std::exception &e) {
+            spdlog::error("Could not parse configuration for zeek sensor, "
+                          "'interfaces' parameter missing or invalid: {}",
+                          e.what());
         }
     }
 
-    for (const auto& proto : sensor_config["protocols"]) {
+    for (const auto &proto : sensor_config["protocols"]) {
         configured_protocols.push_back(proto.as<std::string>());
     }
 
@@ -84,11 +84,11 @@ void ZeekConfigurationHandler::appendAdditionalConfigurations() {
         spdlog::error("Could not open base_config_location for appending: {}", base_config_location);
         return;
     }
-    
+
     base_config << "\n";
 
     if (fs::exists(additional_configurations) && fs::is_directory(additional_configurations)) {
-        for (const auto& entry : fs::directory_iterator(additional_configurations)) {
+        for (const auto &entry : fs::directory_iterator(additional_configurations)) {
             if (entry.path().extension() == ".zeek") {
                 std::ifstream add_conf(entry.path());
                 if (add_conf.is_open()) {
@@ -110,25 +110,26 @@ void ZeekConfigurationHandler::createPluginConfiguration() {
                 << "redef Kafka::topic_name = \"\";\n"
                 << "redef Kafka::kafka_conf = table(\n"
                 << "  [\"metadata.broker.list\"] = \"";
-    
+
     for (size_t i = 0; i < kafka_brokers.size(); ++i) {
         base_config << kafka_brokers[i];
-        if (i < kafka_brokers.size() - 1) base_config << ",";
+        if (i < kafka_brokers.size() - 1)
+            base_config << ",";
     }
     base_config << "\");\n";
     base_config << "redef Kafka::tag_json = F;\n"
                 << "event zeek_init() &priority=-10\n"
                 << "{\n";
 
-    for (const auto& protocol : configured_protocols) {
+    for (const auto &protocol : configured_protocols) {
         std::string lower_protocol = protocol;
         std::transform(lower_protocol.begin(), lower_protocol.end(), lower_protocol.begin(), ::tolower);
         std::string upper_protocol = protocol;
         std::transform(upper_protocol.begin(), upper_protocol.end(), upper_protocol.begin(), ::toupper);
-        
-        std::string topic_name = kafka_topic_prefix + "-" + lower_protocol;
+
+        std::string topic_name               = kafka_topic_prefix + "-" + lower_protocol;
         std::string zeek_protocol_log_format = "Custom" + upper_protocol;
-        std::string kafka_writer_name = lower_protocol + "_filter";
+        std::string kafka_writer_name        = lower_protocol + "_filter";
 
         base_config << "    local " << kafka_writer_name << ": Log::Filter = [\n"
                     << "        $name = \"kafka-" << kafka_writer_name << "\",\n"
@@ -144,7 +145,7 @@ void ZeekConfigurationHandler::createPluginConfiguration() {
 
 std::vector<std::string> ZeekConfigurationHandler::createWorkerConfigurationsForInterfaces() {
     std::vector<std::string> lines;
-    for (const auto& iface : network_interfaces) {
+    for (const auto &iface : network_interfaces) {
         lines.push_back("[zeek-" + iface + "]\n");
         lines.push_back("type=worker\n");
         lines.push_back("host=localhost\n");
@@ -159,7 +160,7 @@ void ZeekConfigurationHandler::templateAndCopyNodeConfig() {
         } else {
             spdlog::warn("Node config template not found: {}", zeek_node_config_template);
         }
-    } catch (const fs::filesystem_error& e) {
+    } catch (const fs::filesystem_error &e) {
         spdlog::error("File copy error: {}", e.what());
     }
 
@@ -170,7 +171,7 @@ void ZeekConfigurationHandler::templateAndCopyNodeConfig() {
     }
 
     auto lines = createWorkerConfigurationsForInterfaces();
-    for (const auto& line : lines) {
+    for (const auto &line : lines) {
         node_cfg << line;
     }
 }

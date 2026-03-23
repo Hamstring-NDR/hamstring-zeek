@@ -1,8 +1,9 @@
-#include <gtest/gtest.h>
 #include "ZeekAnalysisHandler.hpp"
 
+#include <gtest/gtest.h>
+
 class ZeekAnalysisHandlerTest : public ::testing::Test {
-protected:
+  protected:
     void SetUp() override {
         // Basic setup if any
     }
@@ -14,13 +15,15 @@ protected:
 
 TEST_F(ZeekAnalysisHandlerTest, Initialization) {
     ZeekAnalysisHandler handler("/mock/config.zeek", "/mock/logs", "/tmp/test.pcap");
-    // Only basic initialization is tested to avoid running actual system commands in unit tests.
-    // In a full environment, we would use dependency injection for command execution to verify system calls.
+    // Only basic initialization is tested to avoid running actual system commands
+    // in unit tests. In a full environment, we would use dependency injection for
+    // command execution to verify system calls.
     SUCCEED();
 }
 
 TEST_F(ZeekAnalysisHandlerTest, StartAnalysisDelegation) {
     ZeekAnalysisHandler handler("/mock/config.zeek", "/mock/logs", "/tmp/test.pcap");
-    // Same rationale as above. We're testing that it links correctly and the API exists.
+    // Same rationale as above. We're testing that it links correctly and the API
+    // exists.
     SUCCEED();
 }

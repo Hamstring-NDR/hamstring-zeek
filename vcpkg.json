@@ -1,11 +1,11 @@
 {
-  "name": "hamstring-zeek",
-  "version": "1.0.0",
-  "description": "Zeek based module to ingest data in the main Hamstring application based on Apache Kafka queues",
-  "dependencies": [
-    "yaml-cpp",
-    "spdlog",
-    "cxxopts",
-    "gtest"
-  ]
+    "name": "hamstring-zeek",
+    "version": "1.0.0",
+    "description": "Zeek based module to ingest data in the main Hamstring application based on Apache Kafka queues",
+    "dependencies": [
+        "yaml-cpp",
+        "spdlog",
+        "cxxopts",
+        "gtest"
+    ]
 }

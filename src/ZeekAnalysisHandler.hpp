@@ -4,16 +4,13 @@
 #include <vector>
 
 class ZeekAnalysisHandler {
-public:
-    ZeekAnalysisHandler(
-        const std::string& zeek_config_location,
-        const std::string& zeek_log_location,
-        const std::string& pcap_file = ""
-    );
+  public:
+    ZeekAnalysisHandler(const std::string &zeek_config_location, const std::string &zeek_log_location,
+                        const std::string &pcap_file = "");
 
     void startAnalysis(bool is_static_analysis);
 
-private:
+  private:
     void startStaticAnalysis();
     void startNetworkAnalysis();
 
