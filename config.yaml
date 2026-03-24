@@ -16,7 +16,7 @@ pipeline:
 
 environment:
   kafka_brokers:
-    - external_port: 9092
+    - external_port: 8098
       node_ip: 127.0.0.1
   kafka_topics_prefix:
     pipeline:

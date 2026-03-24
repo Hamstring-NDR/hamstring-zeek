@@ -1,15 +1,31 @@
 #include "ZeekAnalysisHandler.hpp"
 
-#include <array>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <mutex>
 #include <spdlog/spdlog.h>
 #include <thread>
 #include <vector>
 
 namespace fs = std::filesystem;
+
+namespace {
+std::atomic<bool> keep_running{true};
+std::mutex mtx;
+std::condition_variable cv;
+
+void signal_handler(int) {
+    keep_running = false;
+    cv.notify_all();
+}
+} // namespace
 
 ZeekAnalysisHandler::ZeekAnalysisHandler(const std::string &zeek_config_location, const std::string &zeek_log_location,
                                          const std::string &pcap_file)
@@ -79,25 +95,18 @@ void ZeekAnalysisHandler::startNetworkAnalysis() {
 
     spdlog::info("network analysis started");
 
-    // Replicating Python behavior: run tail -f /dev/null to keep container
-    // running
-    std::thread reader_thread([]() {
-        FILE *pipe = popen("tail -f /dev/null", "r");
-        if (!pipe) {
-            spdlog::error("Failed to start tail process");
-            return;
-        }
-        std::array<char, 1024> buffer;
-        while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
-            std::cout << "[ZEEK LOG] " << buffer.data();
-        }
-        pclose(pipe);
-    });
+    // Register signal handlers for graceful shutdown (e.g. docker stop)
+    std::signal(SIGINT, signal_handler);
+    std::signal(SIGTERM, signal_handler);
 
     spdlog::info("network analysis ongoing");
-    if (reader_thread.joinable()) {
-        reader_thread.join();
-    }
+
+    // Block until a shutdown signal is received to keep the container running
+    std::unique_lock<std::mutex> lock(mtx);
+    cv.wait(lock, [] { return !keep_running.load(); });
+
+    spdlog::info("Received stop signal. Stopping Zeek...");
+    std::system("zeekctl stop");
 
     spdlog::info("network analysis stopped");
 }

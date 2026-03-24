@@ -51,7 +51,7 @@ Please note that in order for the module to work, you need to have an instance o
 Install [vcpkg](https://github.com/microsoft/vcpkg) and required building tools:
 
 ```bash
-sudo apt install cmake ninja pkg-config curl zip unzip git cacert openssl sqlite
+sudo apt install cmake pkg-config curl zip unzip git openssl ninja-build
 # Set up vcpkg
 git clone https://github.com/microsoft/vcpkg.git
 ./vcpkg/bootstrap-vcpkg.sh
