@@ -17,14 +17,14 @@
 namespace fs = std::filesystem;
 
 namespace {
-std::atomic<bool> keep_running{true};
-std::mutex mtx;
-std::condition_variable cv;
+    std::atomic<bool>       keep_running{true};
+    std::mutex              mtx;
+    std::condition_variable cv;
 
-void signal_handler(int) {
-    keep_running = false;
-    cv.notify_all();
-}
+    void signal_handler(int) {
+        keep_running = false;
+        cv.notify_all();
+    }
 } // namespace
 
 ZeekAnalysisHandler::ZeekAnalysisHandler(const std::string &zeek_config_location, const std::string &zeek_log_location,
