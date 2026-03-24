@@ -27,12 +27,12 @@ jobs:
         id: versioning
         run: |
           set -e
-          
+
           # Initialize VERSION if it doesn't exist
           if [ ! -f VERSION ]; then
             echo "0.1.0" > VERSION
           fi
-          
+
           CURRENT_VERSION=$(cat VERSION)
           IFS='.' read -r -a PARTS <<< "$CURRENT_VERSION"
           MAJOR="${PARTS[0]}"
