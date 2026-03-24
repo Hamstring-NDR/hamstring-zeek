@@ -12,11 +12,12 @@ class ZeekConfigHandlerTest : public ::testing::Test {
   protected:
     void SetUp() override {
         setenv("CONTAINER_NAME", "ZEEK_TEST_CONTAINER", 1);
-        test_dir = fs::temp_directory_path() / "zeek_test_dir_XXXXXX";
+
         // Create a unique temporary directory
-        std::string tpath = test_dir.string();
+        auto        base  = fs::temp_directory_path() / "zeek_test_XXXXXX";
+        std::string tpath = base.string();
         char       *dt    = mkdtemp(tpath.data());
-        test_dir          = dt;
+        test_dir          = fs::path(dt);
 
         fs::create_directories(test_dir / "additional_configs");
 
@@ -58,23 +59,59 @@ class ZeekConfigHandlerTest : public ::testing::Test {
 };
 
 TEST_F(ZeekConfigHandlerTest, InitializationStaticAnalysis) {
-    auto                     config = createMockConfig(true);
-    ZeekConfigurationHandler handler(config, local_zeek.string(), node_cfg_template.string(),
-                                     "/usr/local/zeek/log/zeek.log", (test_dir / "additional").string());
+    auto config = createMockConfig(true);
+    ZeekConfigurationHandler handler(config, local_zeek, std::nullopt, false, node_cfg_template,
+                                     "/usr/local/zeek/log/zeek.log", test_dir / "additional");
 
-    EXPECT_TRUE(handler.isAnalysisStatic());
+    EXPECT_EQ(handler.getAnalysisMode(), AnalysisMode::Static);
     EXPECT_EQ(handler.getZeekLogLocation(), "/usr/local/zeek/log/zeek.log");
 }
 
 TEST_F(ZeekConfigHandlerTest, InitializationNetworkAnalysis) {
-    auto                     config = createMockConfig(false);
-    ZeekConfigurationHandler handler(config, local_zeek.string(), node_cfg_template.string(),
-                                     "/usr/local/zeek/log/zeek.log", (test_dir / "additional").string());
+    auto config = createMockConfig(false);
+    ZeekConfigurationHandler handler(config, local_zeek, std::nullopt, false, node_cfg_template,
+                                     "/usr/local/zeek/log/zeek.log", test_dir / "additional");
 
-    EXPECT_FALSE(handler.isAnalysisStatic());
+    EXPECT_EQ(handler.getAnalysisMode(), AnalysisMode::Network);
     auto interfaces = handler.getNetworkInterfaces();
     ASSERT_EQ(interfaces.size(), 1);
     EXPECT_EQ(interfaces[0], "eth0");
+}
+
+TEST_F(ZeekConfigHandlerTest, CLIInterfaceOverrideForcesNetworkMode) {
+    // Even with static_analysis=true in YAML, CLI --interface should override
+    auto config = createMockConfig(true);
+    ZeekConfigurationHandler handler(config, local_zeek, std::optional<std::string>("ens192"), false,
+                                     node_cfg_template, "/usr/local/zeek/log/zeek.log", test_dir / "additional");
+
+    EXPECT_EQ(handler.getAnalysisMode(), AnalysisMode::Network);
+    auto interfaces = handler.getNetworkInterfaces();
+    ASSERT_EQ(interfaces.size(), 1);
+    EXPECT_EQ(interfaces[0], "ens192");
+}
+
+TEST_F(ZeekConfigHandlerTest, CLIPcapOverrideForcesStaticMode) {
+    // Even with static_analysis=false in YAML, CLI --file should override to static
+    auto config = createMockConfig(false);
+    ZeekConfigurationHandler handler(config, local_zeek, std::nullopt, true, node_cfg_template,
+                                     "/usr/local/zeek/log/zeek.log", test_dir / "additional");
+
+    EXPECT_EQ(handler.getAnalysisMode(), AnalysisMode::Static);
+}
+
+TEST_F(ZeekConfigHandlerTest, MissingContainerNameThrows) {
+    unsetenv("CONTAINER_NAME");
+    auto config = createMockConfig(true);
+    EXPECT_THROW(ZeekConfigurationHandler(config, local_zeek), std::runtime_error);
+}
+
+TEST_F(ZeekConfigHandlerTest, MissingInterfacesInNetworkModeThrows) {
+    auto config = createMockConfig(false);
+    // Remove the interfaces node
+    config["pipeline"]["zeek"]["sensors"]["ZEEK_TEST_CONTAINER"].remove("interfaces");
+    EXPECT_THROW(ZeekConfigurationHandler(config, local_zeek, std::nullopt, false, node_cfg_template,
+                                          "/usr/local/zeek/log/zeek.log", test_dir / "additional"),
+                 std::runtime_error);
 }
 
 TEST_F(ZeekConfigHandlerTest, ConfigureIntegration) {
@@ -82,18 +119,17 @@ TEST_F(ZeekConfigHandlerTest, ConfigureIntegration) {
     // Create an additional config
     std::ofstream(test_dir / "additional_configs" / "custom.zeek") << "@load custom-script\n";
 
-    ZeekConfigurationHandler handler(config, local_zeek.string(), node_cfg_template.string(),
-                                     "/usr/local/zeek/log/zeek.log", (test_dir / "additional_configs").string());
+    ZeekConfigurationHandler handler(config, local_zeek, std::nullopt, false, node_cfg_template,
+                                     "/usr/local/zeek/log/zeek.log", test_dir / "additional_configs");
 
-    // Act
     handler.configure();
 
     // Verify local.zeek content
     std::ifstream lz(local_zeek);
     std::string   content((std::istreambuf_iterator<char>(lz)), std::istreambuf_iterator<char>());
 
-    EXPECT_TRUE(content.find("@load custom-script") != std::string::npos);
-    EXPECT_TRUE(content.find("@load packages/zeek-kafka") != std::string::npos);
-    EXPECT_TRUE(content.find("pipeline-logserver_in-http") != std::string::npos);
-    EXPECT_TRUE(content.find("127.0.0.1:9092") != std::string::npos);
+    EXPECT_NE(content.find("@load custom-script"), std::string::npos);
+    EXPECT_NE(content.find("@load packages/zeek-kafka"), std::string::npos);
+    EXPECT_NE(content.find("pipeline-logserver_in-http"), std::string::npos);
+    EXPECT_NE(content.find("127.0.0.1:9092"), std::string::npos);
 }

@@ -1,76 +1,57 @@
 #include "ZeekAnalysisHandler.hpp"
 
-#include <atomic>
-#include <chrono>
-#include <condition_variable>
 #include <csignal>
-#include <cstdio>
 #include <cstdlib>
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <mutex>
 #include <spdlog/spdlog.h>
 #include <thread>
 #include <vector>
 
-namespace fs = std::filesystem;
+ZeekAnalysisHandler::ZeekAnalysisHandler(const fs::path                   &zeek_config_location,
+                                         const fs::path                   &zeek_log_location,
+                                         std::shared_ptr<ICommandExecutor> executor,
+                                         const fs::path                   &pcap_file)
+    : zeek_config_location_(zeek_config_location),
+      zeek_log_location_(zeek_log_location),
+      pcap_file_(pcap_file),
+      executor_(std::move(executor)) {
 
-namespace {
-std::atomic<bool> keep_running{true};
-std::mutex mtx;
-std::condition_variable cv;
-
-void signal_handler(int) {
-    keep_running = false;
-    cv.notify_all();
-}
-} // namespace
-
-ZeekAnalysisHandler::ZeekAnalysisHandler(const std::string &zeek_config_location, const std::string &zeek_log_location,
-                                         const std::string &pcap_file)
-    : zeek_config_location(zeek_config_location), zeek_log_location(zeek_log_location), pcap_file(pcap_file) {
     const char *env_dir = std::getenv("STATIC_FILES_DIR");
-    if (env_dir) {
-        static_files_dir = env_dir;
-    } else {
-        static_files_dir = "/opt/static_files";
-    }
+    static_files_dir_   = env_dir ? fs::path(env_dir) : fs::path("/opt/static_files");
 }
 
-void ZeekAnalysisHandler::startAnalysis(bool is_static_analysis) {
-    if (is_static_analysis) {
-        spdlog::info("static analysis mode selected");
+void ZeekAnalysisHandler::startAnalysis(AnalysisMode mode) {
+    if (mode == AnalysisMode::Static) {
+        spdlog::info("Static analysis mode selected");
         startStaticAnalysis();
     } else {
-        spdlog::info("network analysis mode selected");
+        spdlog::info("Network analysis mode selected");
         startNetworkAnalysis();
     }
 }
 
 void ZeekAnalysisHandler::startStaticAnalysis() {
-    std::vector<std::string> files;
+    std::vector<fs::path> files;
 
-    if (!pcap_file.empty()) {
-        files.push_back(pcap_file);
-    } else {
-        if (fs::exists(static_files_dir) && fs::is_directory(static_files_dir)) {
-            for (const auto &entry : fs::directory_iterator(static_files_dir)) {
-                if (entry.path().extension() == ".pcap") {
-                    files.push_back(entry.path().string());
-                }
+    if (!pcap_file_.empty()) {
+        files.push_back(pcap_file_);
+    } else if (fs::exists(static_files_dir_) && fs::is_directory(static_files_dir_)) {
+        for (const auto &entry : fs::directory_iterator(static_files_dir_)) {
+            if (entry.path().extension() == ".pcap") {
+                files.push_back(entry.path());
             }
         }
     }
 
     std::vector<std::thread> threads;
+    threads.reserve(files.size());
+
     for (const auto &file : files) {
-        spdlog::info("Starting Analysis for file {}...", file);
-        threads.emplace_back([file, this]() {
-            std::string command = "zeek -C -r " + file + " " + zeek_config_location;
-            int         ret     = std::system(command.c_str());
+        spdlog::info("Starting analysis for file {}...", file.string());
+        threads.emplace_back([this, file]() {
+            std::vector<std::string> args = {"zeek", "-C", "-r", file.string(), zeek_config_location_.string()};
+            int ret = executor_->execute(args);
             if (ret != 0) {
-                spdlog::error("Zeek static analysis failed for file: {}", file);
+                spdlog::error("Zeek static analysis failed for file: {} (exit code {})", file.string(), ret);
             }
         });
     }
@@ -85,28 +66,33 @@ void ZeekAnalysisHandler::startStaticAnalysis() {
 }
 
 void ZeekAnalysisHandler::startNetworkAnalysis() {
-    std::string start_zeek = "zeekctl deploy";
     spdlog::info("Deploying zeekctl...");
-    int ret = std::system(start_zeek.c_str());
+    int ret = executor_->execute({"zeekctl", "deploy"});
     if (ret != 0) {
-        spdlog::error("zeekctl deploy failed!");
+        spdlog::error("zeekctl deploy failed (exit code {})", ret);
         return;
     }
 
-    spdlog::info("network analysis started");
+    spdlog::info("Network analysis started");
 
-    // Register signal handlers for graceful shutdown (e.g. docker stop)
-    std::signal(SIGINT, signal_handler);
-    std::signal(SIGTERM, signal_handler);
+    // Block until a shutdown signal is received (e.g. docker stop sending SIGTERM).
+    // Uses sigwait() on a dedicated thread instead of std::signal() + global state,
+    // which has undefined behavior when mixed with C++ threading primitives.
+    sigset_t wait_set;
+    sigemptyset(&wait_set);
+    sigaddset(&wait_set, SIGINT);
+    sigaddset(&wait_set, SIGTERM);
 
-    spdlog::info("network analysis ongoing");
+    // Block these signals in the current thread so sigwait can catch them
+    pthread_sigmask(SIG_BLOCK, &wait_set, nullptr);
 
-    // Block until a shutdown signal is received to keep the container running
-    std::unique_lock<std::mutex> lock(mtx);
-    cv.wait(lock, [] { return !keep_running.load(); });
+    spdlog::info("Network analysis ongoing — waiting for shutdown signal...");
 
-    spdlog::info("Received stop signal. Stopping Zeek...");
-    std::system("zeekctl stop");
+    int sig = 0;
+    sigwait(&wait_set, &sig);
 
-    spdlog::info("network analysis stopped");
+    spdlog::info("Received signal {}. Stopping Zeek...", sig);
+    executor_->execute({"zeekctl", "stop"});
+
+    spdlog::info("Network analysis stopped");
 }
