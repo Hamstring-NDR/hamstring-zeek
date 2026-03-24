@@ -45,3 +45,22 @@
 docker compose up
 ```
 Please note that in order for the module to work, you need to have an instance of Hamstring running. To do so, please refer to the [official hamstring repository](https://github.com/Hamstring-NDR/hamstring).
+
+## Building
+
+Install [vcpkg](https://github.com/microsoft/vcpkg) and required building tools:
+
+```bash
+sudo apt install cmake ninja pkg-config curl zip unzip git cacert openssl sqlite
+# Set up vcpkg
+git clone https://github.com/microsoft/vcpkg.git
+./vcpkg/bootstrap-vcpkg.sh
+export VCPKG_ROOT=$(pwd)/vcpkg
+
+# Build
+make -S . -B build -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_TESTS=OFF \
+  -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
+cmake --build build --parallel
+```
