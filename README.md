@@ -28,9 +28,6 @@
     <a href="https://github.com/hamstring-ndr/hamstring-zeek/actions/workflows/build_test_macos.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/hamstring-ndr/hamstring-zeek/build_test_macos.yml?branch=main&logo=apple&style=for-the-badge&label=macos" alt="MacOS WorkFlows" />
     </a>
-    <a href="https://github.com/hamstring-ndr/hamstring-zeek/actions/workflows/build_test_windows.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/hamstring-ndr/hamstring-zeek/build_test_windows.yml?branch=main&logo=windows&style=for-the-badge&label=windows" alt="Windows WorkFlows" />
-    </a>
   </td>
 </tr>
 </table>
