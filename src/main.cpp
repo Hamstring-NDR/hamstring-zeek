@@ -63,11 +63,10 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    const fs::path config_file = result["config"].as<std::string>();
-    const fs::path zeek_config_location =
-        result.count("zeek-config-location")
-            ? fs::path(result["zeek-config-location"].as<std::string>())
-            : fs::path("/usr/local/zeek/share/zeek/site/local.zeek");
+    const fs::path config_file          = result["config"].as<std::string>();
+    const fs::path zeek_config_location = result.count("zeek-config-location")
+                                              ? fs::path(result["zeek-config-location"].as<std::string>())
+                                              : fs::path("/usr/local/zeek/share/zeek/site/local.zeek");
 
     const fs::path backup_path = "/opt/local.zeek_backup";
 

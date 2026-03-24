@@ -6,13 +6,9 @@
 #include <thread>
 #include <vector>
 
-ZeekAnalysisHandler::ZeekAnalysisHandler(const fs::path                   &zeek_config_location,
-                                         const fs::path                   &zeek_log_location,
-                                         std::shared_ptr<ICommandExecutor> executor,
-                                         const fs::path                   &pcap_file)
-    : zeek_config_location_(zeek_config_location),
-      zeek_log_location_(zeek_log_location),
-      pcap_file_(pcap_file),
+ZeekAnalysisHandler::ZeekAnalysisHandler(const fs::path &zeek_config_location, const fs::path &zeek_log_location,
+                                         std::shared_ptr<ICommandExecutor> executor, const fs::path &pcap_file)
+    : zeek_config_location_(zeek_config_location), zeek_log_location_(zeek_log_location), pcap_file_(pcap_file),
       executor_(std::move(executor)) {
 
     const char *env_dir = std::getenv("STATIC_FILES_DIR");
@@ -49,7 +45,7 @@ void ZeekAnalysisHandler::startStaticAnalysis() {
         spdlog::info("Starting analysis for file {}...", file.string());
         threads.emplace_back([this, file]() {
             std::vector<std::string> args = {"zeek", "-C", "-r", file.string(), zeek_config_location_.string()};
-            int ret = executor_->execute(args);
+            int                      ret  = executor_->execute(args);
             if (ret != 0) {
                 spdlog::error("Zeek static analysis failed for file: {} (exit code {})", file.string(), ret);
             }

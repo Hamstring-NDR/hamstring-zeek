@@ -1,21 +1,18 @@
 #include "ZeekConfigHandler.hpp"
+
 #include "string_utils.hpp"
 
 #include <cstdlib>
 #include <fstream>
 #include <stdexcept>
 
-ZeekConfigurationHandler::ZeekConfigurationHandler(const YAML::Node                 &config_node,
-                                                   const fs::path                   &zeek_config_location,
+ZeekConfigurationHandler::ZeekConfigurationHandler(const YAML::Node &config_node, const fs::path &zeek_config_location,
                                                    const std::optional<std::string> &interface_override,
-                                                   bool                              pcap_override,
-                                                   const fs::path                   &zeek_node_config_template,
-                                                   const fs::path                   &zeek_log_location,
-                                                   const fs::path                   &additional_configurations)
-    : base_config_location_(zeek_config_location),
-      additional_configurations_(additional_configurations),
-      zeek_node_config_template_(zeek_node_config_template),
-      zeek_log_location_(zeek_log_location) {
+                                                   bool pcap_override, const fs::path &zeek_node_config_template,
+                                                   const fs::path &zeek_log_location,
+                                                   const fs::path &additional_configurations)
+    : base_config_location_(zeek_config_location), additional_configurations_(additional_configurations),
+      zeek_node_config_template_(zeek_node_config_template), zeek_log_location_(zeek_log_location) {
 
     spdlog::info("Setting up Zeek configuration...");
 
@@ -61,8 +58,8 @@ ZeekConfigurationHandler::ZeekConfigurationHandler(const YAML::Node             
     } else {
         analysis_mode_ = AnalysisMode::Network;
         if (!sensor_config["interfaces"] || sensor_config["interfaces"].size() == 0) {
-            throw std::runtime_error(
-                "Analysis mode is 'network' but no 'interfaces' specified for sensor: " + container_name_);
+            throw std::runtime_error("Analysis mode is 'network' but no 'interfaces' specified for sensor: " +
+                                     container_name_);
         }
         for (const auto &iface : sensor_config["interfaces"]) {
             network_interfaces_.push_back(iface.as<std::string>());
@@ -122,9 +119,9 @@ void ZeekConfigurationHandler::createPluginConfiguration() const {
         auto lower = utils::toLower(protocol);
         auto upper = utils::toUpper(protocol);
 
-        auto topic_name       = kafka_topic_prefix_ + "-" + lower;
-        auto log_format       = "Custom" + upper;
-        auto kafka_writer     = lower + "_filter";
+        auto topic_name   = kafka_topic_prefix_ + "-" + lower;
+        auto log_format   = "Custom" + upper;
+        auto kafka_writer = lower + "_filter";
 
         base_config << "    local " << kafka_writer << ": Log::Filter = [\n"
                     << "        $name = \"kafka-" << kafka_writer << "\",\n"

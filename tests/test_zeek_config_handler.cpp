@@ -59,7 +59,7 @@ class ZeekConfigHandlerTest : public ::testing::Test {
 };
 
 TEST_F(ZeekConfigHandlerTest, InitializationStaticAnalysis) {
-    auto config = createMockConfig(true);
+    auto                     config = createMockConfig(true);
     ZeekConfigurationHandler handler(config, local_zeek, std::nullopt, false, node_cfg_template,
                                      "/usr/local/zeek/log/zeek.log", test_dir / "additional");
 
@@ -68,7 +68,7 @@ TEST_F(ZeekConfigHandlerTest, InitializationStaticAnalysis) {
 }
 
 TEST_F(ZeekConfigHandlerTest, InitializationNetworkAnalysis) {
-    auto config = createMockConfig(false);
+    auto                     config = createMockConfig(false);
     ZeekConfigurationHandler handler(config, local_zeek, std::nullopt, false, node_cfg_template,
                                      "/usr/local/zeek/log/zeek.log", test_dir / "additional");
 
@@ -80,9 +80,9 @@ TEST_F(ZeekConfigHandlerTest, InitializationNetworkAnalysis) {
 
 TEST_F(ZeekConfigHandlerTest, CLIInterfaceOverrideForcesNetworkMode) {
     // Even with static_analysis=true in YAML, CLI --interface should override
-    auto config = createMockConfig(true);
-    ZeekConfigurationHandler handler(config, local_zeek, std::optional<std::string>("ens192"), false,
-                                     node_cfg_template, "/usr/local/zeek/log/zeek.log", test_dir / "additional");
+    auto                     config = createMockConfig(true);
+    ZeekConfigurationHandler handler(config, local_zeek, std::optional<std::string>("ens192"), false, node_cfg_template,
+                                     "/usr/local/zeek/log/zeek.log", test_dir / "additional");
 
     EXPECT_EQ(handler.getAnalysisMode(), AnalysisMode::Network);
     auto interfaces = handler.getNetworkInterfaces();
@@ -92,7 +92,7 @@ TEST_F(ZeekConfigHandlerTest, CLIInterfaceOverrideForcesNetworkMode) {
 
 TEST_F(ZeekConfigHandlerTest, CLIPcapOverrideForcesStaticMode) {
     // Even with static_analysis=false in YAML, CLI --file should override to static
-    auto config = createMockConfig(false);
+    auto                     config = createMockConfig(false);
     ZeekConfigurationHandler handler(config, local_zeek, std::nullopt, true, node_cfg_template,
                                      "/usr/local/zeek/log/zeek.log", test_dir / "additional");
 

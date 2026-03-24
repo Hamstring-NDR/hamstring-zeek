@@ -1,9 +1,8 @@
 #pragma once
 
-#include <spdlog/spdlog.h>
-
 #include <cerrno>
 #include <cstring>
+#include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <string>
 #include <sys/wait.h>

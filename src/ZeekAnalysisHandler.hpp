@@ -19,10 +19,9 @@ class ZeekAnalysisHandler {
     /// @param zeek_log_location     Path where Zeek writes its logs.
     /// @param executor              Command executor (defaults to PosixCommandExecutor).
     /// @param pcap_file             Optional path to a single PCAP file for static analysis.
-    ZeekAnalysisHandler(const fs::path              &zeek_config_location,
-                        const fs::path              &zeek_log_location,
-                        std::shared_ptr<ICommandExecutor> executor = std::make_shared<PosixCommandExecutor>(),
-                        const fs::path              &pcap_file     = "");
+    ZeekAnalysisHandler(const fs::path &zeek_config_location, const fs::path &zeek_log_location,
+                        std::shared_ptr<ICommandExecutor> executor  = std::make_shared<PosixCommandExecutor>(),
+                        const fs::path                   &pcap_file = "");
 
     /// Start analysis in the given mode.
     void startAnalysis(AnalysisMode mode);
@@ -31,9 +30,9 @@ class ZeekAnalysisHandler {
     void startStaticAnalysis();
     void startNetworkAnalysis();
 
-    fs::path                         zeek_config_location_;
-    fs::path                         zeek_log_location_;
-    fs::path                         pcap_file_;
-    fs::path                         static_files_dir_;
+    fs::path                          zeek_config_location_;
+    fs::path                          zeek_log_location_;
+    fs::path                          pcap_file_;
+    fs::path                          static_files_dir_;
     std::shared_ptr<ICommandExecutor> executor_;
 };

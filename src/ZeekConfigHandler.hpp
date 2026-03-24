@@ -34,13 +34,13 @@ class ZeekConfigurationHandler {
     ///
     /// @throws std::runtime_error  If CONTAINER_NAME env var is missing, sensor config is
     ///                             not found, or required fields (interfaces) are absent.
-    ZeekConfigurationHandler(const YAML::Node                 &config_node,
-                             const fs::path                   &zeek_config_location        = "/usr/local/zeek/share/zeek/site/local.zeek",
-                             const std::optional<std::string> &interface_override           = std::nullopt,
-                             bool                              pcap_override                = false,
-                             const fs::path                   &zeek_node_config_template    = "/opt/src/zeek/base_node.cfg",
-                             const fs::path                   &zeek_log_location            = "/usr/local/zeek/log/zeek.log",
-                             const fs::path                   &additional_configurations    = "/opt/src/zeek/additional_configs/");
+    ZeekConfigurationHandler(const YAML::Node &config_node,
+                             const fs::path   &zeek_config_location = "/usr/local/zeek/share/zeek/site/local.zeek",
+                             const std::optional<std::string> &interface_override = std::nullopt,
+                             bool                              pcap_override      = false,
+                             const fs::path &zeek_node_config_template            = "/opt/src/zeek/base_node.cfg",
+                             const fs::path &zeek_log_location                    = "/usr/local/zeek/log/zeek.log",
+                             const fs::path &additional_configurations = "/opt/src/zeek/additional_configs/");
 
     /// Execute the complete Zeek configuration: node config, additional configs, and Kafka plugin.
     void configure() const;

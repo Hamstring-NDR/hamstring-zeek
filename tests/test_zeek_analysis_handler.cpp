@@ -27,9 +27,9 @@ class MockCommandExecutor : public ICommandExecutor {
     }
 
   private:
-    mutable std::mutex                              mutex_;
-    mutable std::vector<std::vector<std::string>>   recorded_calls_;
-    int                                             exit_code_{0};
+    mutable std::mutex                            mutex_;
+    mutable std::vector<std::vector<std::string>> recorded_calls_;
+    int                                           exit_code_{0};
 };
 
 class ZeekAnalysisHandlerTest : public ::testing::Test {
@@ -37,7 +37,7 @@ class ZeekAnalysisHandlerTest : public ::testing::Test {
     void SetUp() override {
         mock_executor_ = std::make_shared<MockCommandExecutor>();
 
-        test_dir_ = fs::temp_directory_path() / "zeek_analysis_test_XXXXXX";
+        test_dir_         = fs::temp_directory_path() / "zeek_analysis_test_XXXXXX";
         std::string tpath = test_dir_.string();
         char       *dt    = mkdtemp(tpath.data());
         test_dir_         = fs::path(dt);
