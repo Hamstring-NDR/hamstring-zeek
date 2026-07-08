@@ -10,9 +10,11 @@ ZeekConfigurationHandler::ZeekConfigurationHandler(const YAML::Node &config_node
                                                    const std::optional<std::string> &interface_override,
                                                    bool pcap_override, const fs::path &zeek_node_config_template,
                                                    const fs::path &zeek_log_location,
-                                                   const fs::path &additional_configurations)
+                                                   const fs::path &additional_configurations,
+                                                   const fs::path &zeek_node_config_path)
     : base_config_location_(zeek_config_location), additional_configurations_(additional_configurations),
-      zeek_node_config_template_(zeek_node_config_template), zeek_log_location_(zeek_log_location) {
+      zeek_node_config_template_(zeek_node_config_template), zeek_node_config_path_(zeek_node_config_path),
+      zeek_log_location_(zeek_log_location) {
 
     spdlog::info("Setting up Zeek configuration...");
 
@@ -110,7 +112,13 @@ void ZeekConfigurationHandler::createPluginConfiguration() const {
     base_config << "@load packages/zeek-kafka\n"
                 << "redef Kafka::topic_name = \"\";\n"
                 << "redef Kafka::kafka_conf = table(\n"
-                << "  [\"metadata.broker.list\"] = \"" << utils::joinStrings(kafka_brokers_, ",") << "\");\n"
+                << "  [\"metadata.broker.list\"] = \"" << utils::joinStrings(kafka_brokers_, ",") << "\",\n"
+                << "  [\"socket.keepalive.enable\"] = \"true\",\n"
+                << "  [\"reconnect.backoff.ms\"] = \"1000\",\n"
+                << "  [\"reconnect.backoff.max.ms\"] = \"10000\",\n"
+                << "  [\"message.send.max.retries\"] = \"10000000\",\n"
+                << "  [\"retry.backoff.ms\"] = \"1000\",\n"
+                << "  [\"message.timeout.ms\"] = \"0\");\n"
                 << "redef Kafka::tag_json = F;\n"
                 << "event zeek_init() &priority=-10\n"
                 << "{\n";
@@ -139,7 +147,8 @@ void ZeekConfigurationHandler::writeWorkerConfigurations(std::ostream &out) cons
     for (const auto &iface : network_interfaces_) {
         out << "[zeek-" << iface << "]\n"
             << "type=worker\n"
-            << "host=localhost\n";
+            << "host=localhost\n"
+            << "interface=" << iface << "\n";
     }
 }
 
