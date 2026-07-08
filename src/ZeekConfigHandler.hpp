@@ -31,6 +31,7 @@ class ZeekConfigurationHandler {
     /// @param zeek_node_config_template   Template for node.cfg.
     /// @param zeek_log_location           Path where Zeek writes logs.
     /// @param additional_configurations   Directory with extra .zeek config files.
+    /// @param zeek_node_config_path       Destination node.cfg path.
     ///
     /// @throws std::runtime_error  If CONTAINER_NAME env var is missing, sensor config is
     ///                             not found, or required fields (interfaces) are absent.
@@ -40,7 +41,8 @@ class ZeekConfigurationHandler {
                              bool                              pcap_override      = false,
                              const fs::path &zeek_node_config_template            = "/opt/src/zeek/base_node.cfg",
                              const fs::path &zeek_log_location                    = "/usr/local/zeek/log/zeek.log",
-                             const fs::path &additional_configurations = "/opt/src/zeek/additional_configs/");
+                             const fs::path &additional_configurations = "/opt/src/zeek/additional_configs/",
+                             const fs::path &zeek_node_config_path    = "/usr/local/zeek/etc/node.cfg");
 
     /// Execute the complete Zeek configuration: node config, additional configs, and Kafka plugin.
     void configure() const;
@@ -48,6 +50,7 @@ class ZeekConfigurationHandler {
     [[nodiscard]] AnalysisMode                    getAnalysisMode() const { return analysis_mode_; }
     [[nodiscard]] const fs::path                 &getZeekLogLocation() const { return zeek_log_location_; }
     [[nodiscard]] const std::vector<std::string> &getNetworkInterfaces() const { return network_interfaces_; }
+    [[nodiscard]] const std::vector<std::string> &getKafkaBrokers() const { return kafka_brokers_; }
 
   private:
     void appendAdditionalConfigurations() const;
@@ -58,7 +61,7 @@ class ZeekConfigurationHandler {
     fs::path    base_config_location_;
     fs::path    additional_configurations_;
     fs::path    zeek_node_config_template_;
-    fs::path    zeek_node_config_path_{"/usr/local/zeek/etc/node.cfg"};
+    fs::path    zeek_node_config_path_;
     fs::path    zeek_log_location_;
     std::string container_name_;
 

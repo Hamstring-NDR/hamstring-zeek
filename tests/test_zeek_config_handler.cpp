@@ -120,7 +120,7 @@ TEST_F(ZeekConfigHandlerTest, ConfigureIntegration) {
     std::ofstream(test_dir / "additional_configs" / "custom.zeek") << "@load custom-script\n";
 
     ZeekConfigurationHandler handler(config, local_zeek, std::nullopt, false, node_cfg_template,
-                                     "/usr/local/zeek/log/zeek.log", test_dir / "additional_configs");
+                                     "/usr/local/zeek/log/zeek.log", test_dir / "additional_configs", node_cfg);
 
     handler.configure();
 
@@ -132,4 +132,12 @@ TEST_F(ZeekConfigHandlerTest, ConfigureIntegration) {
     EXPECT_NE(content.find("@load packages/zeek-kafka"), std::string::npos);
     EXPECT_NE(content.find("pipeline-logserver_in-http"), std::string::npos);
     EXPECT_NE(content.find("127.0.0.1:9092"), std::string::npos);
+    EXPECT_NE(content.find("[\"message.send.max.retries\"] = \"10000000\""), std::string::npos);
+    EXPECT_NE(content.find("[\"message.timeout.ms\"] = \"0\""), std::string::npos);
+
+    std::ifstream node(node_cfg);
+    std::string   node_content((std::istreambuf_iterator<char>(node)), std::istreambuf_iterator<char>());
+
+    EXPECT_NE(node_content.find("[zeek-eth0]"), std::string::npos);
+    EXPECT_NE(node_content.find("interface=eth0"), std::string::npos);
 }

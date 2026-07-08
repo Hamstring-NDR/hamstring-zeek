@@ -101,7 +101,8 @@ int main(int argc, char **argv) {
         fs::path pcap_file = result.count("file") ? fs::path(result["file"].as<std::string>()) : fs::path{};
 
         ZeekAnalysisHandler analysisHandler(zeek_config_location, configHandler.getZeekLogLocation(),
-                                            std::make_shared<PosixCommandExecutor>(), pcap_file);
+                                            std::make_shared<PosixCommandExecutor>(), pcap_file,
+                                            configHandler.getKafkaBrokers());
 
         spdlog::info("Starting analysis...");
         analysisHandler.startAnalysis(configHandler.getAnalysisMode());
