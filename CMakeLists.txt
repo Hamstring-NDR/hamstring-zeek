@@ -38,6 +38,7 @@ enable_testing()
 add_executable(hamstring_zeek_tests
     tests/test_zeek_config_handler.cpp
     tests/test_zeek_analysis_handler.cpp
+    tests/test_kafka_recovery_controller.cpp
     src/ZeekConfigHandler.cpp
     src/ZeekAnalysisHandler.cpp
 )

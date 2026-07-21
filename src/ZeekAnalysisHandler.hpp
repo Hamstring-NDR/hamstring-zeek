@@ -36,6 +36,7 @@ class ZeekAnalysisHandler {
     bool areKafkaBrokersReachable() const;
     bool deployZeekctl() const;
     bool waitForKafkaBrokers(const std::atomic_bool *stop_requested = nullptr) const;
+    bool waitForIntervalOrStop(const std::atomic_bool &stop_requested, int interval_seconds) const;
 
     fs::path                          zeek_config_location_;
     fs::path                          zeek_log_location_;
@@ -44,4 +45,6 @@ class ZeekAnalysisHandler {
     std::shared_ptr<ICommandExecutor> executor_;
     std::vector<std::string>          kafka_brokers_;
     int                               kafka_wait_interval_seconds_{5};
+    int                               kafka_outage_threshold_seconds_{15};
+    int                               kafka_recovery_stability_seconds_{30};
 };

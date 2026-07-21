@@ -1,4 +1,5 @@
 #include "ZeekAnalysisHandler.hpp"
+#include "KafkaRecoveryController.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -134,6 +135,10 @@ ZeekAnalysisHandler::ZeekAnalysisHandler(const fs::path &zeek_config_location, c
     static_files_dir_   = env_dir ? fs::path(env_dir) : fs::path("/opt/static_files");
 
     kafka_wait_interval_seconds_ = parsePositiveEnvInt("HAMSTRING_ZEEK_KAFKA_WAIT_INTERVAL_SECONDS", 5);
+    kafka_outage_threshold_seconds_ =
+        parsePositiveEnvInt("HAMSTRING_ZEEK_KAFKA_OUTAGE_THRESHOLD_SECONDS", 15);
+    kafka_recovery_stability_seconds_ =
+        parsePositiveEnvInt("HAMSTRING_ZEEK_KAFKA_RECOVERY_STABILITY_SECONDS", 30);
 }
 
 void ZeekAnalysisHandler::startAnalysis(AnalysisMode mode) {
@@ -211,6 +216,16 @@ bool ZeekAnalysisHandler::waitForKafkaBrokers(const std::atomic_bool *stop_reque
     }
 }
 
+bool ZeekAnalysisHandler::waitForIntervalOrStop(const std::atomic_bool &stop_requested, int interval_seconds) const {
+    for (int slept = 0; slept < interval_seconds; ++slept) {
+        if (stop_requested.load()) {
+            return false;
+        }
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+    return !stop_requested.load();
+}
+
 void ZeekAnalysisHandler::startStaticAnalysis() {
     std::vector<fs::path> files;
 
@@ -279,30 +294,59 @@ void ZeekAnalysisHandler::startNetworkAnalysis() {
 
     std::atomic_bool stop_monitor{false};
     std::thread      kafka_monitor([this, &stop_monitor]() {
-        bool kafka_was_reachable = true;
+        KafkaRecoveryController recovery_controller{std::chrono::seconds(kafka_outage_threshold_seconds_),
+                                                     std::chrono::seconds(kafka_recovery_stability_seconds_)};
 
-        while (!stop_monitor.load()) {
-            for (int slept = 0; slept < kafka_wait_interval_seconds_; ++slept) {
+        while (waitForIntervalOrStop(stop_monitor, kafka_wait_interval_seconds_)) {
+            const auto event = recovery_controller.update(areKafkaBrokersReachable(),
+                                                          KafkaRecoveryController::Clock::now());
+            switch (event) {
+            case KafkaRecoveryController::Event::OutageStarted:
+                spdlog::warn("Kafka became unreachable while Zeek network analysis is running. Recovery will be "
+                             "armed after {} seconds of unavailability.",
+                             kafka_outage_threshold_seconds_);
+                break;
+            case KafkaRecoveryController::Event::RecoveryArmed:
+                spdlog::warn("Kafka has been unreachable for {} seconds. Zeek will restart its Kafka writer after "
+                             "Kafka is stable for {} seconds.",
+                             kafka_outage_threshold_seconds_, kafka_recovery_stability_seconds_);
+                break;
+            case KafkaRecoveryController::Event::TransientOutageResolved:
+                spdlog::info("Kafka recovered before the outage threshold; Zeek worker restart is not required.");
+                break;
+            case KafkaRecoveryController::Event::StableRecoveryStarted:
+                spdlog::info("Kafka brokers are reachable again. Waiting {} seconds before restarting Zeek workers.",
+                             kafka_recovery_stability_seconds_);
+                break;
+            case KafkaRecoveryController::Event::RestartDue: {
                 if (stop_monitor.load()) {
                     return;
                 }
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-            }
 
-            if (areKafkaBrokersReachable()) {
-                if (!kafka_was_reachable) {
-                    spdlog::info("Kafka brokers are reachable again while Zeek network analysis is running.");
-                    kafka_was_reachable = true;
+                spdlog::warn("Kafka recovery is stable. Restarting Zeek workers to recreate the Kafka plugin.");
+                int stop_ret = executor_->execute({"zeekctl", "stop"});
+                if (stop_ret != 0) {
+                    spdlog::warn("zeekctl stop during Kafka recovery failed (exit code {}); attempting deploy anyway.",
+                                 stop_ret);
                 }
-                continue;
-            }
 
-            if (kafka_was_reachable) {
-                spdlog::warn("Kafka became unreachable while Zeek network analysis is running. Zeek will keep "
-                             "capturing; Kafka delivery depends on the Zeek Kafka writer retrying successfully.");
-                kafka_was_reachable = false;
-            } else {
-                spdlog::warn("Kafka is still unreachable while Zeek network analysis is running.");
+                if (stop_monitor.load()) {
+                    return;
+                }
+
+                bool deployed = deployZeekctl();
+                recovery_controller.recordRestartResult(deployed, KafkaRecoveryController::Clock::now());
+                if (deployed) {
+                    spdlog::info("Zeek workers restarted after Kafka recovery.");
+                } else {
+                    spdlog::error("Zeek worker restart after Kafka recovery failed; retrying after another stable "
+                                  "{}-second Kafka window.",
+                                  kafka_recovery_stability_seconds_);
+                }
+                break;
+            }
+            case KafkaRecoveryController::Event::None:
+                break;
             }
         }
     });
