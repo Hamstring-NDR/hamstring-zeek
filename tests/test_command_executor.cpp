@@ -5,14 +5,14 @@
 
 namespace {
 
-class SignalMaskRestorer {
-  public:
-    explicit SignalMaskRestorer(const sigset_t &mask) : mask_(mask) {}
-    ~SignalMaskRestorer() { pthread_sigmask(SIG_SETMASK, &mask_, nullptr); }
+    class SignalMaskRestorer {
+      public:
+        explicit SignalMaskRestorer(const sigset_t &mask) : mask_(mask) {}
+        ~SignalMaskRestorer() { pthread_sigmask(SIG_SETMASK, &mask_, nullptr); }
 
-  private:
-    sigset_t mask_;
-};
+      private:
+        sigset_t mask_;
+    };
 
 } // namespace
 
