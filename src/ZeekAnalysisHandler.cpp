@@ -1,13 +1,14 @@
 #include "ZeekAnalysisHandler.hpp"
+
 #include "KafkaRecoveryController.hpp"
 
 #include <algorithm>
 #include <atomic>
 #include <cerrno>
 #include <chrono>
-#include <cstring>
 #include <csignal>
 #include <cstdlib>
+#include <cstring>
 #include <fcntl.h>
 #include <netdb.h>
 #include <spdlog/fmt/ranges.h>
@@ -22,106 +23,106 @@
 
 namespace {
 
-struct BrokerEndpoint {
-    std::string host;
-    std::string port;
-};
+    struct BrokerEndpoint {
+        std::string host;
+        std::string port;
+    };
 
-BrokerEndpoint parseBrokerEndpoint(const std::string &endpoint) {
-    auto separator = endpoint.rfind(':');
-    if (separator == std::string::npos || separator == 0 || separator == endpoint.size() - 1) {
-        throw std::runtime_error("Invalid Kafka broker endpoint: " + endpoint);
-    }
-    return {endpoint.substr(0, separator), endpoint.substr(separator + 1)};
-}
-
-int parsePositiveEnvInt(const char *name, int default_value) {
-    const char *value = std::getenv(name);
-    if (value == nullptr || std::strlen(value) == 0) {
-        return default_value;
+    BrokerEndpoint parseBrokerEndpoint(const std::string &endpoint) {
+        auto separator = endpoint.rfind(':');
+        if (separator == std::string::npos || separator == 0 || separator == endpoint.size() - 1) {
+            throw std::runtime_error("Invalid Kafka broker endpoint: " + endpoint);
+        }
+        return {endpoint.substr(0, separator), endpoint.substr(separator + 1)};
     }
 
-    try {
-        int parsed = std::stoi(value);
-        return std::max(1, parsed);
-    } catch (const std::exception &) {
-        spdlog::warn("Ignoring invalid integer value '{}' for {}", value, name);
-        return default_value;
-    }
-}
+    int parsePositiveEnvInt(const char *name, int default_value) {
+        const char *value = std::getenv(name);
+        if (value == nullptr || std::strlen(value) == 0) {
+            return default_value;
+        }
 
-bool connectWithTimeout(const addrinfo *addr, int timeout_seconds) {
-    int fd = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
-    if (fd < 0) {
-        return false;
-    }
-
-    int flags = fcntl(fd, F_GETFL, 0);
-    if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
-        close(fd);
-        return false;
-    }
-
-    int ret = connect(fd, addr->ai_addr, addr->ai_addrlen);
-    if (ret == 0) {
-        close(fd);
-        return true;
-    }
-
-    if (errno != EINPROGRESS) {
-        close(fd);
-        return false;
-    }
-
-    fd_set write_set;
-    FD_ZERO(&write_set);
-    FD_SET(fd, &write_set);
-
-    timeval timeout{};
-    timeout.tv_sec = timeout_seconds;
-
-    ret = select(fd + 1, nullptr, &write_set, nullptr, &timeout);
-    if (ret <= 0) {
-        close(fd);
-        return false;
-    }
-
-    int       socket_error = 0;
-    socklen_t len          = sizeof(socket_error);
-    if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &socket_error, &len) != 0) {
-        close(fd);
-        return false;
-    }
-
-    close(fd);
-    return socket_error == 0;
-}
-
-bool canConnectToBroker(const std::string &endpoint) {
-    BrokerEndpoint broker = parseBrokerEndpoint(endpoint);
-
-    addrinfo hints{};
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_family   = AF_UNSPEC;
-
-    addrinfo *results = nullptr;
-    int       ret     = getaddrinfo(broker.host.c_str(), broker.port.c_str(), &hints, &results);
-    if (ret != 0) {
-        spdlog::debug("Kafka broker {} is not resolvable yet: {}", endpoint, gai_strerror(ret));
-        return false;
-    }
-
-    bool connected = false;
-    for (auto *addr = results; addr != nullptr; addr = addr->ai_next) {
-        if (connectWithTimeout(addr, 2)) {
-            connected = true;
-            break;
+        try {
+            int parsed = std::stoi(value);
+            return std::max(1, parsed);
+        } catch (const std::exception &) {
+            spdlog::warn("Ignoring invalid integer value '{}' for {}", value, name);
+            return default_value;
         }
     }
 
-    freeaddrinfo(results);
-    return connected;
-}
+    bool connectWithTimeout(const addrinfo *addr, int timeout_seconds) {
+        int fd = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
+        if (fd < 0) {
+            return false;
+        }
+
+        int flags = fcntl(fd, F_GETFL, 0);
+        if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+            close(fd);
+            return false;
+        }
+
+        int ret = connect(fd, addr->ai_addr, addr->ai_addrlen);
+        if (ret == 0) {
+            close(fd);
+            return true;
+        }
+
+        if (errno != EINPROGRESS) {
+            close(fd);
+            return false;
+        }
+
+        fd_set write_set;
+        FD_ZERO(&write_set);
+        FD_SET(fd, &write_set);
+
+        timeval timeout{};
+        timeout.tv_sec = timeout_seconds;
+
+        ret = select(fd + 1, nullptr, &write_set, nullptr, &timeout);
+        if (ret <= 0) {
+            close(fd);
+            return false;
+        }
+
+        int       socket_error = 0;
+        socklen_t len          = sizeof(socket_error);
+        if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &socket_error, &len) != 0) {
+            close(fd);
+            return false;
+        }
+
+        close(fd);
+        return socket_error == 0;
+    }
+
+    bool canConnectToBroker(const std::string &endpoint) {
+        BrokerEndpoint broker = parseBrokerEndpoint(endpoint);
+
+        addrinfo hints{};
+        hints.ai_socktype = SOCK_STREAM;
+        hints.ai_family   = AF_UNSPEC;
+
+        addrinfo *results = nullptr;
+        int       ret     = getaddrinfo(broker.host.c_str(), broker.port.c_str(), &hints, &results);
+        if (ret != 0) {
+            spdlog::debug("Kafka broker {} is not resolvable yet: {}", endpoint, gai_strerror(ret));
+            return false;
+        }
+
+        bool connected = false;
+        for (auto *addr = results; addr != nullptr; addr = addr->ai_next) {
+            if (connectWithTimeout(addr, 2)) {
+                connected = true;
+                break;
+            }
+        }
+
+        freeaddrinfo(results);
+        return connected;
+    }
 
 } // namespace
 
@@ -134,11 +135,9 @@ ZeekAnalysisHandler::ZeekAnalysisHandler(const fs::path &zeek_config_location, c
     const char *env_dir = std::getenv("STATIC_FILES_DIR");
     static_files_dir_   = env_dir ? fs::path(env_dir) : fs::path("/opt/static_files");
 
-    kafka_wait_interval_seconds_ = parsePositiveEnvInt("HAMSTRING_ZEEK_KAFKA_WAIT_INTERVAL_SECONDS", 5);
-    kafka_outage_threshold_seconds_ =
-        parsePositiveEnvInt("HAMSTRING_ZEEK_KAFKA_OUTAGE_THRESHOLD_SECONDS", 15);
-    kafka_recovery_stability_seconds_ =
-        parsePositiveEnvInt("HAMSTRING_ZEEK_KAFKA_RECOVERY_STABILITY_SECONDS", 30);
+    kafka_wait_interval_seconds_      = parsePositiveEnvInt("HAMSTRING_ZEEK_KAFKA_WAIT_INTERVAL_SECONDS", 5);
+    kafka_outage_threshold_seconds_   = parsePositiveEnvInt("HAMSTRING_ZEEK_KAFKA_OUTAGE_THRESHOLD_SECONDS", 15);
+    kafka_recovery_stability_seconds_ = parsePositiveEnvInt("HAMSTRING_ZEEK_KAFKA_RECOVERY_STABILITY_SECONDS", 30);
 }
 
 void ZeekAnalysisHandler::startAnalysis(AnalysisMode mode) {
@@ -295,11 +294,11 @@ void ZeekAnalysisHandler::startNetworkAnalysis() {
     std::atomic_bool stop_monitor{false};
     std::thread      kafka_monitor([this, &stop_monitor]() {
         KafkaRecoveryController recovery_controller{std::chrono::seconds(kafka_outage_threshold_seconds_),
-                                                     std::chrono::seconds(kafka_recovery_stability_seconds_)};
+                                                    std::chrono::seconds(kafka_recovery_stability_seconds_)};
 
         while (waitForIntervalOrStop(stop_monitor, kafka_wait_interval_seconds_)) {
-            const auto event = recovery_controller.update(areKafkaBrokersReachable(),
-                                                          KafkaRecoveryController::Clock::now());
+            const auto event =
+                recovery_controller.update(areKafkaBrokersReachable(), KafkaRecoveryController::Clock::now());
             switch (event) {
             case KafkaRecoveryController::Event::OutageStarted:
                 spdlog::warn("Kafka became unreachable while Zeek network analysis is running. Recovery will be "

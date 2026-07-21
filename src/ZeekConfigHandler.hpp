@@ -41,8 +41,8 @@ class ZeekConfigurationHandler {
                              bool                              pcap_override      = false,
                              const fs::path &zeek_node_config_template            = "/opt/src/zeek/base_node.cfg",
                              const fs::path &zeek_log_location                    = "/usr/local/zeek/log/zeek.log",
-                             const fs::path &additional_configurations = "/opt/src/zeek/additional_configs/",
-                             const fs::path &zeek_node_config_path    = "/usr/local/zeek/etc/node.cfg");
+                             const fs::path &additional_configurations            = "/opt/src/zeek/additional_configs/",
+                             const fs::path &zeek_node_config_path                = "/usr/local/zeek/etc/node.cfg");
 
     /// Execute the complete Zeek configuration: node config, additional configs, and Kafka plugin.
     void configure() const;

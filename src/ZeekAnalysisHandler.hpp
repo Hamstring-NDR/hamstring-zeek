@@ -23,9 +23,8 @@ class ZeekAnalysisHandler {
     /// @param pcap_file             Optional path to a single PCAP file for static analysis.
     /// @param kafka_brokers         Kafka broker endpoints to wait for before starting Zeek.
     ZeekAnalysisHandler(const fs::path &zeek_config_location, const fs::path &zeek_log_location,
-                        std::shared_ptr<ICommandExecutor> executor  = std::make_shared<PosixCommandExecutor>(),
-                        const fs::path                   &pcap_file = "",
-                        std::vector<std::string>          kafka_brokers = {});
+                        std::shared_ptr<ICommandExecutor> executor = std::make_shared<PosixCommandExecutor>(),
+                        const fs::path &pcap_file = "", std::vector<std::string> kafka_brokers = {});
 
     /// Start analysis in the given mode.
     void startAnalysis(AnalysisMode mode);
