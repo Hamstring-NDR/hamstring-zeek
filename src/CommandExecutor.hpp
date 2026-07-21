@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cerrno>
+#include <csignal>
 #include <cstring>
 #include <spdlog/spdlog.h>
 #include <stdexcept>
@@ -45,6 +46,17 @@ class PosixCommandExecutor : public ICommandExecutor {
         }
 
         if (pid == 0) {
+            // The live-analysis monitor inherits the signal mask used by
+            // sigwait(). Do not pass blocked shutdown signals to zeekctl or
+            // to the Zeek workers it starts.
+            sigset_t shutdown_signals;
+            sigemptyset(&shutdown_signals);
+            sigaddset(&shutdown_signals, SIGINT);
+            sigaddset(&shutdown_signals, SIGTERM);
+            if (pthread_sigmask(SIG_UNBLOCK, &shutdown_signals, nullptr) != 0) {
+                _exit(127);
+            }
+
             // Child process — replace with the target command
             execvp(argv[0], argv.data());
             // execvp only returns on failure

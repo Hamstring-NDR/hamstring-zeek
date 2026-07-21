@@ -38,8 +38,17 @@ enable_testing()
 add_executable(hamstring_zeek_tests
     tests/test_zeek_config_handler.cpp
     tests/test_zeek_analysis_handler.cpp
+    tests/test_kafka_recovery_controller.cpp
+    tests/test_command_executor.cpp
     src/ZeekConfigHandler.cpp
     src/ZeekAnalysisHandler.cpp
+)
+
+add_executable(command_executor_signal_helper tests/command_executor_signal_helper.cpp)
+target_link_libraries(command_executor_signal_helper PRIVATE Threads::Threads)
+add_dependencies(hamstring_zeek_tests command_executor_signal_helper)
+target_compile_definitions(hamstring_zeek_tests PRIVATE
+    COMMAND_EXECUTOR_SIGNAL_HELPER="$<TARGET_FILE:command_executor_signal_helper>"
 )
 
 target_include_directories(hamstring_zeek_tests PRIVATE src)
