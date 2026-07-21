@@ -44,6 +44,13 @@ add_executable(hamstring_zeek_tests
     src/ZeekAnalysisHandler.cpp
 )
 
+add_executable(command_executor_signal_helper tests/command_executor_signal_helper.cpp)
+target_link_libraries(command_executor_signal_helper PRIVATE Threads::Threads)
+add_dependencies(hamstring_zeek_tests command_executor_signal_helper)
+target_compile_definitions(hamstring_zeek_tests PRIVATE
+    COMMAND_EXECUTOR_SIGNAL_HELPER="$<TARGET_FILE:command_executor_signal_helper>"
+)
+
 target_include_directories(hamstring_zeek_tests PRIVATE src)
 
 target_link_libraries(hamstring_zeek_tests PRIVATE
