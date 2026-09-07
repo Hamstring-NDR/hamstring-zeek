@@ -20,6 +20,7 @@ add_executable(hamstring_zeek
     src/main.cpp
     src/ZeekConfigHandler.cpp
     src/ZeekAnalysisHandler.cpp
+    src/ZeekLogTransport.cpp
 )
 
 target_include_directories(hamstring_zeek PRIVATE src)
@@ -38,10 +39,11 @@ enable_testing()
 add_executable(hamstring_zeek_tests
     tests/test_zeek_config_handler.cpp
     tests/test_zeek_analysis_handler.cpp
-    tests/test_kafka_recovery_controller.cpp
+    tests/test_ingestion_recovery_controller.cpp
     tests/test_command_executor.cpp
     src/ZeekConfigHandler.cpp
     src/ZeekAnalysisHandler.cpp
+    src/ZeekLogTransport.cpp
 )
 
 add_executable(command_executor_signal_helper tests/command_executor_signal_helper.cpp)

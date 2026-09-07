@@ -55,7 +55,7 @@ git clone https://github.com/microsoft/vcpkg.git
 export VCPKG_ROOT=$(pwd)/vcpkg
 
 # Build
-make -S . -B build -G Ninja \
+cmake -S . -B build -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DBUILD_TESTS=OFF \
   -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake

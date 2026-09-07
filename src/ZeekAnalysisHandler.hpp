@@ -17,14 +17,16 @@ namespace fs = std::filesystem;
 /// unit testing without actual process execution.
 class ZeekAnalysisHandler {
   public:
-    /// @param zeek_config_location  Path to the Zeek configuration file.
-    /// @param zeek_log_location     Path where Zeek writes its logs.
-    /// @param executor              Command executor (defaults to PosixCommandExecutor).
-    /// @param pcap_file             Optional path to a single PCAP file for static analysis.
-    /// @param kafka_brokers         Kafka broker endpoints to wait for before starting Zeek.
+    /// @param zeek_config_location   Path to the Zeek configuration file.
+    /// @param zeek_log_location      Path where Zeek writes its logs.
+    /// @param executor               Command executor (defaults to PosixCommandExecutor).
+    /// @param pcap_file              Optional path to a single PCAP file for static analysis.
+    /// @param ingestion_endpoints    Ingestion endpoints (Kafka brokers or Fluvio SPU
+    ///                               addresses, depending on the configured transport) to
+    ///                               wait for before starting Zeek.
     ZeekAnalysisHandler(const fs::path &zeek_config_location, const fs::path &zeek_log_location,
                         std::shared_ptr<ICommandExecutor> executor = std::make_shared<PosixCommandExecutor>(),
-                        const fs::path &pcap_file = "", std::vector<std::string> kafka_brokers = {});
+                        const fs::path &pcap_file = "", std::vector<std::string> ingestion_endpoints = {});
 
     /// Start analysis in the given mode.
     void startAnalysis(AnalysisMode mode);
@@ -32,9 +34,9 @@ class ZeekAnalysisHandler {
   private:
     void startStaticAnalysis();
     void startNetworkAnalysis();
-    bool areKafkaBrokersReachable() const;
+    bool areIngestionEndpointsReachable() const;
     bool deployZeekctl() const;
-    bool waitForKafkaBrokers(const std::atomic_bool *stop_requested = nullptr) const;
+    bool waitForIngestionEndpoints(const std::atomic_bool *stop_requested = nullptr) const;
     bool waitForIntervalOrStop(const std::atomic_bool &stop_requested, int interval_seconds) const;
 
     fs::path                          zeek_config_location_;
@@ -42,8 +44,8 @@ class ZeekAnalysisHandler {
     fs::path                          pcap_file_;
     fs::path                          static_files_dir_;
     std::shared_ptr<ICommandExecutor> executor_;
-    std::vector<std::string>          kafka_brokers_;
-    int                               kafka_wait_interval_seconds_{5};
-    int                               kafka_outage_threshold_seconds_{15};
-    int                               kafka_recovery_stability_seconds_{30};
+    std::vector<std::string>          ingestion_endpoints_;
+    int                               ingestion_wait_interval_seconds_{5};
+    int                               ingestion_outage_threshold_seconds_{15};
+    int                               ingestion_recovery_stability_seconds_{30};
 };

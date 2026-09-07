@@ -1,6 +1,9 @@
 #pragma once
 
+#include "ZeekLogTransport.hpp"
+
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <spdlog/spdlog.h>
 #include <string>
@@ -15,8 +18,9 @@ enum class AnalysisMode { Static, Network };
 /// Handles the configuration of Zeek sensors based on the pipeline configuration.
 ///
 /// This class is responsible for setting up Zeek to process network traffic according
-/// to the specified configuration. It configures the Zeek Kafka plugin, sets up worker
-/// nodes for network interfaces, and integrates additional custom configurations.
+/// to the specified configuration. It configures Zeek's log-shipping plugin (Kafka or
+/// Fluvio, via IZeekLogTransport), sets up worker nodes for network interfaces, and
+/// integrates additional custom configurations.
 ///
 /// The handler is immutable after construction — the constructor resolves all config
 /// values including CLI overrides. Call `configure()` to write the Zeek config files.
@@ -44,13 +48,20 @@ class ZeekConfigurationHandler {
                              const fs::path &additional_configurations            = "/opt/src/zeek/additional_configs/",
                              const fs::path &zeek_node_config_path                = "/usr/local/zeek/etc/node.cfg");
 
-    /// Execute the complete Zeek configuration: node config, additional configs, and Kafka plugin.
+    /// Execute the complete Zeek configuration: node config, additional configs, and the
+    /// configured log-shipping plugin.
     void configure() const;
 
     [[nodiscard]] AnalysisMode                    getAnalysisMode() const { return analysis_mode_; }
     [[nodiscard]] const fs::path                 &getZeekLogLocation() const { return zeek_log_location_; }
     [[nodiscard]] const std::vector<std::string> &getNetworkInterfaces() const { return network_interfaces_; }
-    [[nodiscard]] const std::vector<std::string> &getKafkaBrokers() const { return kafka_brokers_; }
+
+    /// Endpoints (host:port) that must be reachable before Zeek is started — Kafka
+    /// brokers or Fluvio SPU addresses, depending on `ingestion_transport`.
+    [[nodiscard]] std::vector<std::string> getIngestionEndpoints() const { return log_transport_->endpoints(); }
+
+    /// "kafka" or "fluvio" — whichever transport is configured.
+    [[nodiscard]] std::string getIngestionTransportName() const { return log_transport_->name(); }
 
   private:
     void appendAdditionalConfigurations() const;
@@ -65,9 +76,8 @@ class ZeekConfigurationHandler {
     fs::path    zeek_log_location_;
     std::string container_name_;
 
-    AnalysisMode             analysis_mode_{AnalysisMode::Static};
-    std::vector<std::string> network_interfaces_;
-    std::string              kafka_topic_prefix_;
-    std::vector<std::string> configured_protocols_;
-    std::vector<std::string> kafka_brokers_;
+    AnalysisMode                        analysis_mode_{AnalysisMode::Static};
+    std::vector<std::string>            network_interfaces_;
+    std::vector<std::string>            configured_protocols_;
+    std::unique_ptr<IZeekLogTransport>  log_transport_;
 };

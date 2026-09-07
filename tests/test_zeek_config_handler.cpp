@@ -34,10 +34,32 @@ class ZeekConfigHandlerTest : public ::testing::Test {
     }
 
     YAML::Node createMockConfig(bool static_analysis) {
+        // Deliberately does NOT set "ingestion_transport" -- exercises the
+        // backward-compatible default-to-kafka path for configs written
+        // before Fluvio support existed.
         YAML::Node config;
         config["environment"]["kafka_brokers"][0]["node_ip"]                     = "127.0.0.1";
         config["environment"]["kafka_brokers"][0]["external_port"]               = "9092";
         config["environment"]["kafka_topics_prefix"]["pipeline"]["logserver_in"] = "pipeline-logserver_in";
+
+        YAML::Node sensor = config["pipeline"]["zeek"]["sensors"]["ZEEK_TEST_CONTAINER"];
+        sensor["protocols"].push_back("http");
+        sensor["protocols"].push_back("dns");
+
+        if (static_analysis) {
+            sensor["static_analysis"] = true;
+        } else {
+            sensor["static_analysis"] = false;
+            sensor["interfaces"].push_back("eth0");
+        }
+        return config;
+    }
+
+    YAML::Node createFluvioMockConfig(bool static_analysis) {
+        YAML::Node config;
+        config["environment"]["ingestion_transport"]                   = "fluvio";
+        config["environment"]["fluvio_endpoints"][0]["node_ip"]        = "127.0.0.1";
+        config["environment"]["fluvio_endpoints"][0]["external_port"]  = "9003";
 
         YAML::Node sensor = config["pipeline"]["zeek"]["sensors"]["ZEEK_TEST_CONTAINER"];
         sensor["protocols"].push_back("http");
@@ -65,6 +87,13 @@ TEST_F(ZeekConfigHandlerTest, InitializationStaticAnalysis) {
 
     EXPECT_EQ(handler.getAnalysisMode(), AnalysisMode::Static);
     EXPECT_EQ(handler.getZeekLogLocation(), "/usr/local/zeek/log/zeek.log");
+
+    // No "ingestion_transport" key was set, so this must fall back to kafka
+    // for backward compatibility with configs written before Fluvio support.
+    EXPECT_EQ(handler.getIngestionTransportName(), "kafka");
+    auto endpoints = handler.getIngestionEndpoints();
+    ASSERT_EQ(endpoints.size(), 1);
+    EXPECT_EQ(endpoints[0], "127.0.0.1:9092");
 }
 
 TEST_F(ZeekConfigHandlerTest, InitializationNetworkAnalysis) {
@@ -140,4 +169,68 @@ TEST_F(ZeekConfigHandlerTest, ConfigureIntegration) {
 
     EXPECT_NE(node_content.find("[zeek-eth0]"), std::string::npos);
     EXPECT_NE(node_content.find("interface=eth0"), std::string::npos);
+}
+
+TEST_F(ZeekConfigHandlerTest, UnsupportedIngestionTransportThrows) {
+    auto config                                  = createMockConfig(true);
+    config["environment"]["ingestion_transport"] = "carrier-pigeon";
+
+    EXPECT_THROW(ZeekConfigurationHandler(config, local_zeek, std::nullopt, false, node_cfg_template,
+                                          "/usr/local/zeek/log/zeek.log", test_dir / "additional"),
+                 std::runtime_error);
+}
+
+TEST_F(ZeekConfigHandlerTest, FluvioTransportIsSelectable) {
+    auto                     config = createFluvioMockConfig(true);
+    ZeekConfigurationHandler handler(config, local_zeek, std::nullopt, false, node_cfg_template,
+                                     "/usr/local/zeek/log/zeek.log", test_dir / "additional");
+
+    EXPECT_EQ(handler.getIngestionTransportName(), "fluvio");
+    auto endpoints = handler.getIngestionEndpoints();
+    ASSERT_EQ(endpoints.size(), 1);
+    EXPECT_EQ(endpoints[0], "127.0.0.1:9003");
+}
+
+TEST_F(ZeekConfigHandlerTest, ConfigureIntegrationFluvio) {
+    auto config = createFluvioMockConfig(false);
+
+    ZeekConfigurationHandler handler(config, local_zeek, std::nullopt, false, node_cfg_template,
+                                     "/usr/local/zeek/log/zeek.log", test_dir / "additional_configs", node_cfg);
+
+    handler.configure();
+
+    std::ifstream lz(local_zeek);
+    std::string   content((std::istreambuf_iterator<char>(lz)), std::istreambuf_iterator<char>());
+
+    EXPECT_NE(content.find("@load zeek-fluvio"), std::string::npos);
+    EXPECT_NE(content.find("redef Fluvio::send_all_active_logs = F;"), std::string::npos);
+    EXPECT_NE(content.find("redef Fluvio::logs_to_send = set(CustomHTTP::LOG, CustomDNS::LOG);"), std::string::npos);
+
+    // Must not pull in the Kafka plugin/config when Fluvio is selected.
+    EXPECT_EQ(content.find("@load packages/zeek-kafka"), std::string::npos);
+    EXPECT_EQ(content.find("Kafka::kafka_conf"), std::string::npos);
+
+    // No fluvio_default_topic_name was set, so there should be no override --
+    // the plugin falls back to its own automatic per-log topic mapping.
+    EXPECT_EQ(content.find("Fluvio::default_topic_name"), std::string::npos);
+
+    std::ifstream node(node_cfg);
+    std::string   node_content((std::istreambuf_iterator<char>(node)), std::istreambuf_iterator<char>());
+
+    EXPECT_NE(node_content.find("[zeek-eth0]"), std::string::npos);
+}
+
+TEST_F(ZeekConfigHandlerTest, FluvioDefaultTopicNameOverride) {
+    auto config                                        = createFluvioMockConfig(true);
+    config["environment"]["fluvio_default_topic_name"] = "hamstring-input";
+
+    ZeekConfigurationHandler handler(config, local_zeek, std::nullopt, false, node_cfg_template,
+                                     "/usr/local/zeek/log/zeek.log", test_dir / "additional");
+
+    handler.configure();
+
+    std::ifstream lz(local_zeek);
+    std::string   content((std::istreambuf_iterator<char>(lz)), std::istreambuf_iterator<char>());
+
+    EXPECT_NE(content.find("redef Fluvio::default_topic_name = \"hamstring-input\";"), std::string::npos);
 }
