@@ -102,7 +102,7 @@ int main(int argc, char **argv) {
 
         ZeekAnalysisHandler analysisHandler(zeek_config_location, configHandler.getZeekLogLocation(),
                                             std::make_shared<PosixCommandExecutor>(), pcap_file,
-                                            configHandler.getKafkaBrokers());
+                                            configHandler.getIngestionEndpoints());
 
         spdlog::info("Starting analysis...");
         analysisHandler.startAnalysis(configHandler.getAnalysisMode());

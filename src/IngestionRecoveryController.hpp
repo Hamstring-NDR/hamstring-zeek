@@ -3,10 +3,10 @@
 #include <chrono>
 #include <optional>
 
-/// Tracks Kafka availability during live analysis and decides when Zeek
-/// Kafka writer must be recreated. It does not perform I/O, making the
-/// recovery policy independently testable.
-class KafkaRecoveryController {
+/// Tracks ingestion-endpoint (Kafka broker or Fluvio SPU) availability during live
+/// analysis and decides when Zeek's log-writer plugin must be recreated. It does not
+/// perform I/O, making the recovery policy independently testable.
+class IngestionRecoveryController {
   public:
     enum class Event {
         None,
@@ -20,11 +20,11 @@ class KafkaRecoveryController {
     using Clock     = std::chrono::steady_clock;
     using TimePoint = Clock::time_point;
 
-    KafkaRecoveryController(std::chrono::seconds outage_threshold, std::chrono::seconds recovery_stability)
+    IngestionRecoveryController(std::chrono::seconds outage_threshold, std::chrono::seconds recovery_stability)
         : outage_threshold_(outage_threshold), recovery_stability_(recovery_stability) {}
 
-    Event update(bool kafka_reachable, TimePoint now) {
-        if (!kafka_reachable) {
+    Event update(bool ingestion_reachable, TimePoint now) {
+        if (!ingestion_reachable) {
             recovery_started_.reset();
             restart_due_ = false;
 

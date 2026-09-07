@@ -15,9 +15,23 @@ pipeline:
           - eth0
 
 environment:
+  # "kafka" (default, for backward compatibility) or "fluvio".
+  ingestion_transport: kafka
+
+  # Used when ingestion_transport: kafka.
   kafka_brokers:
     - external_port: 8098
       node_ip: 127.0.0.1
   kafka_topics_prefix:
     pipeline:
-      logserver_in: "hamstring_input"
+      logserver_in: "hamstring-input"
+
+  # Used when ingestion_transport: fluvio. SPU endpoints, same shape as kafka_brokers.
+  # fluvio_endpoints:
+  #   - external_port: 9003
+  #     node_ip: 127.0.0.1
+  #
+  # Optional: overrides the zeek-fluvio plugin's automatic per-log topic naming with a
+  # single fixed topic for every protocol sent (there's no per-protocol prefix option
+  # like Kafka's kafka_topics_prefix -- see ZeekLogTransport.cpp for why).
+  # fluvio_default_topic_name: "hamstring-input"

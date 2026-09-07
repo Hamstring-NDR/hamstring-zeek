@@ -1,6 +1,6 @@
 #include "ZeekAnalysisHandler.hpp"
 
-#include "KafkaRecoveryController.hpp"
+#include "IngestionRecoveryController.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -31,7 +31,7 @@ namespace {
     BrokerEndpoint parseBrokerEndpoint(const std::string &endpoint) {
         auto separator = endpoint.rfind(':');
         if (separator == std::string::npos || separator == 0 || separator == endpoint.size() - 1) {
-            throw std::runtime_error("Invalid Kafka broker endpoint: " + endpoint);
+            throw std::runtime_error("Invalid ingestion endpoint: " + endpoint);
         }
         return {endpoint.substr(0, separator), endpoint.substr(separator + 1)};
     }
@@ -108,7 +108,7 @@ namespace {
         addrinfo *results = nullptr;
         int       ret     = getaddrinfo(broker.host.c_str(), broker.port.c_str(), &hints, &results);
         if (ret != 0) {
-            spdlog::debug("Kafka broker {} is not resolvable yet: {}", endpoint, gai_strerror(ret));
+            spdlog::debug("Ingestion endpoint {} is not resolvable yet: {}", endpoint, gai_strerror(ret));
             return false;
         }
 
@@ -128,20 +128,23 @@ namespace {
 
 ZeekAnalysisHandler::ZeekAnalysisHandler(const fs::path &zeek_config_location, const fs::path &zeek_log_location,
                                          std::shared_ptr<ICommandExecutor> executor, const fs::path &pcap_file,
-                                         std::vector<std::string> kafka_brokers)
+                                         std::vector<std::string> ingestion_endpoints)
     : zeek_config_location_(zeek_config_location), zeek_log_location_(zeek_log_location), pcap_file_(pcap_file),
-      executor_(std::move(executor)), kafka_brokers_(std::move(kafka_brokers)) {
+      executor_(std::move(executor)), ingestion_endpoints_(std::move(ingestion_endpoints)) {
 
     const char *env_dir = std::getenv("STATIC_FILES_DIR");
     static_files_dir_   = env_dir ? fs::path(env_dir) : fs::path("/opt/static_files");
 
-    kafka_wait_interval_seconds_      = parsePositiveEnvInt("HAMSTRING_ZEEK_KAFKA_WAIT_INTERVAL_SECONDS", 5);
-    kafka_outage_threshold_seconds_   = parsePositiveEnvInt("HAMSTRING_ZEEK_KAFKA_OUTAGE_THRESHOLD_SECONDS", 15);
-    kafka_recovery_stability_seconds_ = parsePositiveEnvInt("HAMSTRING_ZEEK_KAFKA_RECOVERY_STABILITY_SECONDS", 30);
+    ingestion_wait_interval_seconds_      = parsePositiveEnvInt("HAMSTRING_ZEEK_INGESTION_WAIT_INTERVAL_SECONDS",
+                                                             parsePositiveEnvInt("HAMSTRING_ZEEK_KAFKA_WAIT_INTERVAL_SECONDS", 5));
+    ingestion_outage_threshold_seconds_   = parsePositiveEnvInt("HAMSTRING_ZEEK_INGESTION_OUTAGE_THRESHOLD_SECONDS",
+                                                             parsePositiveEnvInt("HAMSTRING_ZEEK_KAFKA_OUTAGE_THRESHOLD_SECONDS", 15));
+    ingestion_recovery_stability_seconds_ = parsePositiveEnvInt("HAMSTRING_ZEEK_INGESTION_RECOVERY_STABILITY_SECONDS",
+                                                             parsePositiveEnvInt("HAMSTRING_ZEEK_KAFKA_RECOVERY_STABILITY_SECONDS", 30));
 }
 
 void ZeekAnalysisHandler::startAnalysis(AnalysisMode mode) {
-    waitForKafkaBrokers();
+    waitForIngestionEndpoints();
 
     if (mode == AnalysisMode::Static) {
         spdlog::info("Static analysis mode selected");
@@ -152,18 +155,18 @@ void ZeekAnalysisHandler::startAnalysis(AnalysisMode mode) {
     }
 }
 
-bool ZeekAnalysisHandler::areKafkaBrokersReachable() const {
-    if (kafka_brokers_.empty()) {
+bool ZeekAnalysisHandler::areIngestionEndpointsReachable() const {
+    if (ingestion_endpoints_.empty()) {
         return true;
     }
 
-    for (const auto &broker : kafka_brokers_) {
+    for (const auto &broker : ingestion_endpoints_) {
         try {
             if (!canConnectToBroker(broker)) {
                 return false;
             }
         } catch (const std::exception &e) {
-            spdlog::warn("Kafka broker readiness check failed for {}: {}", broker, e.what());
+            spdlog::warn("Ingestion endpoint readiness check failed for {}: {}", broker, e.what());
             return false;
         }
     }
@@ -171,43 +174,43 @@ bool ZeekAnalysisHandler::areKafkaBrokersReachable() const {
     return true;
 }
 
-bool ZeekAnalysisHandler::waitForKafkaBrokers(const std::atomic_bool *stop_requested) const {
-    if (kafka_brokers_.empty()) {
-        spdlog::warn("No Kafka brokers configured for readiness checks. Starting Zeek without waiting for Kafka.");
+bool ZeekAnalysisHandler::waitForIngestionEndpoints(const std::atomic_bool *stop_requested) const {
+    if (ingestion_endpoints_.empty()) {
+        spdlog::warn("No ingestion endpoints configured for readiness checks. Starting Zeek without waiting for ingestion.");
         return true;
     }
 
-    spdlog::info("Waiting for Kafka brokers: {}", fmt::join(kafka_brokers_, ", "));
+    spdlog::info("Waiting for ingestion endpoints: {}", fmt::join(ingestion_endpoints_, ", "));
 
     while (true) {
         if (stop_requested != nullptr && stop_requested->load()) {
-            spdlog::info("Kafka wait interrupted by shutdown request.");
+            spdlog::info("Ingestion wait interrupted by shutdown request.");
             return false;
         }
 
         std::vector<std::string> unavailable;
 
-        for (const auto &broker : kafka_brokers_) {
+        for (const auto &broker : ingestion_endpoints_) {
             try {
                 if (!canConnectToBroker(broker)) {
                     unavailable.push_back(broker);
                 }
             } catch (const std::exception &e) {
-                spdlog::warn("Kafka broker readiness check failed for {}: {}", broker, e.what());
+                spdlog::warn("Ingestion endpoint readiness check failed for {}: {}", broker, e.what());
                 unavailable.push_back(broker);
             }
         }
 
         if (unavailable.empty()) {
-            spdlog::info("Kafka brokers are reachable.");
+            spdlog::info("Ingestion endpoints are reachable.");
             return true;
         }
 
-        spdlog::warn("Kafka brokers not reachable yet: {}. Retrying in {} seconds.", fmt::join(unavailable, ", "),
-                     kafka_wait_interval_seconds_);
-        for (int slept = 0; slept < kafka_wait_interval_seconds_; ++slept) {
+        spdlog::warn("Ingestion endpoints not reachable yet: {}. Retrying in {} seconds.", fmt::join(unavailable, ", "),
+                     ingestion_wait_interval_seconds_);
+        for (int slept = 0; slept < ingestion_wait_interval_seconds_; ++slept) {
             if (stop_requested != nullptr && stop_requested->load()) {
-                spdlog::info("Kafka wait interrupted by shutdown request.");
+                spdlog::info("Ingestion wait interrupted by shutdown request.");
                 return false;
             }
             std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -240,7 +243,7 @@ void ZeekAnalysisHandler::startStaticAnalysis() {
 
     for (const auto &file : files) {
         while (true) {
-            waitForKafkaBrokers();
+            waitForIngestionEndpoints();
 
             spdlog::info("Starting analysis for file {}...", file.string());
             std::vector<std::string> args = {"zeek", "-C", "-r", file.string(), zeek_config_location_.string()};
@@ -249,13 +252,13 @@ void ZeekAnalysisHandler::startStaticAnalysis() {
                 break;
             }
 
-            if (areKafkaBrokersReachable()) {
+            if (areIngestionEndpointsReachable()) {
                 spdlog::error("Zeek static analysis failed for file: {} (exit code {})", file.string(), ret);
                 break;
             }
 
-            spdlog::warn("Zeek static analysis failed while Kafka was unreachable for file: {} (exit code {}). "
-                         "Waiting for Kafka and retrying the same file.",
+            spdlog::warn("Zeek static analysis failed while ingestion was unreachable for file: {} (exit code {}). "
+                         "Waiting for ingestion and retrying the same file.",
                          file.string(), ret);
         }
     }
@@ -292,40 +295,40 @@ void ZeekAnalysisHandler::startNetworkAnalysis() {
     pthread_sigmask(SIG_BLOCK, &wait_set, nullptr);
 
     std::atomic_bool stop_monitor{false};
-    std::thread      kafka_monitor([this, &stop_monitor]() {
-        KafkaRecoveryController recovery_controller{std::chrono::seconds(kafka_outage_threshold_seconds_),
-                                                    std::chrono::seconds(kafka_recovery_stability_seconds_)};
+    std::thread      ingestion_monitor([this, &stop_monitor]() {
+        IngestionRecoveryController recovery_controller{std::chrono::seconds(ingestion_outage_threshold_seconds_),
+                                                    std::chrono::seconds(ingestion_recovery_stability_seconds_)};
 
-        while (waitForIntervalOrStop(stop_monitor, kafka_wait_interval_seconds_)) {
+        while (waitForIntervalOrStop(stop_monitor, ingestion_wait_interval_seconds_)) {
             const auto event =
-                recovery_controller.update(areKafkaBrokersReachable(), KafkaRecoveryController::Clock::now());
+                recovery_controller.update(areIngestionEndpointsReachable(), IngestionRecoveryController::Clock::now());
             switch (event) {
-            case KafkaRecoveryController::Event::OutageStarted:
-                spdlog::warn("Kafka became unreachable while Zeek network analysis is running. Recovery will be "
+            case IngestionRecoveryController::Event::OutageStarted:
+                spdlog::warn("Ingestion became unreachable while Zeek network analysis is running. Recovery will be "
                              "armed after {} seconds of unavailability.",
-                             kafka_outage_threshold_seconds_);
+                             ingestion_outage_threshold_seconds_);
                 break;
-            case KafkaRecoveryController::Event::RecoveryArmed:
-                spdlog::warn("Kafka has been unreachable for {} seconds. Zeek will restart its Kafka writer after "
-                             "Kafka is stable for {} seconds.",
-                             kafka_outage_threshold_seconds_, kafka_recovery_stability_seconds_);
+            case IngestionRecoveryController::Event::RecoveryArmed:
+                spdlog::warn("Ingestion has been unreachable for {} seconds. Zeek will restart its log-writer plugin after "
+                             "ingestion is stable for {} seconds.",
+                             ingestion_outage_threshold_seconds_, ingestion_recovery_stability_seconds_);
                 break;
-            case KafkaRecoveryController::Event::TransientOutageResolved:
-                spdlog::info("Kafka recovered before the outage threshold; Zeek worker restart is not required.");
+            case IngestionRecoveryController::Event::TransientOutageResolved:
+                spdlog::info("Ingestion recovered before the outage threshold; Zeek worker restart is not required.");
                 break;
-            case KafkaRecoveryController::Event::StableRecoveryStarted:
-                spdlog::info("Kafka brokers are reachable again. Waiting {} seconds before restarting Zeek workers.",
-                             kafka_recovery_stability_seconds_);
+            case IngestionRecoveryController::Event::StableRecoveryStarted:
+                spdlog::info("Ingestion endpoints are reachable again. Waiting {} seconds before restarting Zeek workers.",
+                             ingestion_recovery_stability_seconds_);
                 break;
-            case KafkaRecoveryController::Event::RestartDue: {
+            case IngestionRecoveryController::Event::RestartDue: {
                 if (stop_monitor.load()) {
                     return;
                 }
 
-                spdlog::warn("Kafka recovery is stable. Restarting Zeek workers to recreate the Kafka plugin.");
+                spdlog::warn("Ingestion recovery is stable. Restarting Zeek workers to recreate the log-writer plugin.");
                 int stop_ret = executor_->execute({"zeekctl", "stop"});
                 if (stop_ret != 0) {
-                    spdlog::warn("zeekctl stop during Kafka recovery failed (exit code {}); attempting deploy anyway.",
+                    spdlog::warn("zeekctl stop during ingestion recovery failed (exit code {}); attempting deploy anyway.",
                                  stop_ret);
                 }
 
@@ -334,17 +337,17 @@ void ZeekAnalysisHandler::startNetworkAnalysis() {
                 }
 
                 bool deployed = deployZeekctl();
-                recovery_controller.recordRestartResult(deployed, KafkaRecoveryController::Clock::now());
+                recovery_controller.recordRestartResult(deployed, IngestionRecoveryController::Clock::now());
                 if (deployed) {
-                    spdlog::info("Zeek workers restarted after Kafka recovery.");
+                    spdlog::info("Zeek workers restarted after ingestion recovery.");
                 } else {
-                    spdlog::error("Zeek worker restart after Kafka recovery failed; retrying after another stable "
-                                  "{}-second Kafka window.",
-                                  kafka_recovery_stability_seconds_);
+                    spdlog::error("Zeek worker restart after ingestion recovery failed; retrying after another stable "
+                                  "{}-second ingestion window.",
+                                  ingestion_recovery_stability_seconds_);
                 }
                 break;
             }
-            case KafkaRecoveryController::Event::None:
+            case IngestionRecoveryController::Event::None:
                 break;
             }
         }
@@ -357,8 +360,8 @@ void ZeekAnalysisHandler::startNetworkAnalysis() {
 
     spdlog::info("Received signal {}. Stopping Zeek...", sig);
     stop_monitor.store(true);
-    if (kafka_monitor.joinable()) {
-        kafka_monitor.join();
+    if (ingestion_monitor.joinable()) {
+        ingestion_monitor.join();
     }
     executor_->execute({"zeekctl", "stop"});
 

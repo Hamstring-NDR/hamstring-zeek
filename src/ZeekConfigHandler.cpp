@@ -1,5 +1,6 @@
 #include "ZeekConfigHandler.hpp"
 
+#include "ZeekLogTransport.hpp"
 #include "string_utils.hpp"
 
 #include <cstdlib>
@@ -31,13 +32,36 @@ ZeekConfigurationHandler::ZeekConfigurationHandler(const YAML::Node &config_node
         throw std::runtime_error("Missing 'environment' section in config.");
     }
 
-    for (const auto &broker : env_node["kafka_brokers"]) {
-        auto ip   = broker["node_ip"].as<std::string>();
-        auto port = broker["external_port"].as<std::string>();
-        kafka_brokers_.push_back(ip + ":" + port);
+    // --- Determine ingestion transport (defaults to "kafka" for backward compatibility
+    //     with configs written before Fluvio support existed) ---
+    const auto ingestion_transport =
+        env_node["ingestion_transport"] ? env_node["ingestion_transport"].as<std::string>() : std::string("kafka");
+    const bool is_fluvio = utils::toLower(ingestion_transport) == "fluvio";
+
+    // Endpoints live under a transport-specific key so both can be present in the
+    // same config.yaml (e.g. while migrating) without one overwriting the other.
+    std::vector<std::string> ingestion_endpoints;
+    const auto               endpoint_node = is_fluvio ? env_node["fluvio_endpoints"] : env_node["kafka_brokers"];
+    if (endpoint_node) {
+        for (const auto &endpoint : endpoint_node) {
+            auto ip   = endpoint["node_ip"].as<std::string>();
+            auto port = endpoint["external_port"].as<std::string>();
+            ingestion_endpoints.push_back(ip + ":" + port);
+        }
     }
 
-    kafka_topic_prefix_ = env_node["kafka_topics_prefix"]["pipeline"]["logserver_in"].as<std::string>();
+    // Topic prefix keeps its historical "kafka_topics_prefix" key (only meaningful for
+    // the Kafka transport — see ZeekLogTransport.cpp for why Fluvio can't use a prefix).
+    std::string topic_prefix;
+    if (const auto prefix_node = env_node["kafka_topics_prefix"]) {
+        topic_prefix = prefix_node["pipeline"]["logserver_in"].as<std::string>();
+    }
+
+    const auto fluvio_topic_name = env_node["fluvio_default_topic_name"]
+                                       ? env_node["fluvio_default_topic_name"].as<std::string>()
+                                       : std::string();
+
+    log_transport_ = makeZeekLogTransport({ingestion_transport, ingestion_endpoints, topic_prefix, fluvio_topic_name});
 
     // --- Parse sensor-specific configuration ---
     auto sensor_config = config_node["pipeline"]["zeek"]["sensors"][container_name_];
@@ -105,42 +129,12 @@ void ZeekConfigurationHandler::appendAdditionalConfigurations() const {
 void ZeekConfigurationHandler::createPluginConfiguration() const {
     std::ofstream base_config(base_config_location_, std::ios_base::app);
     if (!base_config.is_open()) {
-        spdlog::error("Could not open for Kafka config: {}", base_config_location_.string());
+        spdlog::error("Could not open for {} config: {}", log_transport_->name(), base_config_location_.string());
         return;
     }
 
-    base_config << "@load packages/zeek-kafka\n"
-                << "redef Kafka::topic_name = \"\";\n"
-                << "redef Kafka::kafka_conf = table(\n"
-                << "  [\"metadata.broker.list\"] = \"" << utils::joinStrings(kafka_brokers_, ",") << "\",\n"
-                << "  [\"socket.keepalive.enable\"] = \"true\",\n"
-                << "  [\"reconnect.backoff.ms\"] = \"1000\",\n"
-                << "  [\"reconnect.backoff.max.ms\"] = \"10000\",\n"
-                << "  [\"message.send.max.retries\"] = \"10000000\",\n"
-                << "  [\"retry.backoff.ms\"] = \"1000\",\n"
-                << "  [\"message.timeout.ms\"] = \"0\");\n"
-                << "redef Kafka::tag_json = F;\n"
-                << "event zeek_init() &priority=-10\n"
-                << "{\n";
-
-    for (const auto &protocol : configured_protocols_) {
-        auto lower = utils::toLower(protocol);
-        auto upper = utils::toUpper(protocol);
-
-        auto topic_name   = kafka_topic_prefix_ + "-" + lower;
-        auto log_format   = "Custom" + upper;
-        auto kafka_writer = lower + "_filter";
-
-        base_config << "    local " << kafka_writer << ": Log::Filter = [\n"
-                    << "        $name = \"kafka-" << kafka_writer << "\",\n"
-                    << "        $writer = Log::WRITER_KAFKAWRITER,\n"
-                    << "        $path = \"" << topic_name << "\"\n"
-                    << "    ];\n"
-                    << "    Log::add_filter(" << log_format << "::LOG, " << kafka_writer << ");\n\n";
-    }
-
-    base_config << "}\n";
-    spdlog::info("Wrote Kafka Zeek plugin configuration to file");
+    log_transport_->writePluginConfiguration(base_config, configured_protocols_);
+    spdlog::info("Wrote {} Zeek plugin configuration to file", log_transport_->name());
 }
 
 void ZeekConfigurationHandler::writeWorkerConfigurations(std::ostream &out) const {

@@ -21,6 +21,7 @@ FROM zeek/zeek:8.0
 
 ARG LIBRDKAFKA_VERSION=1.4.4
 ARG ZEEK_KAFKA_VERSION=1.2.0
+ARG ZEEK_FLUVIO_VERSION=main
 
 # Combine package installation, builds, and cleanup in a single RUN
 # This ensures build tools like cmake and gcc don't bloat the final layer size
@@ -42,7 +43,11 @@ RUN apt update -y && apt upgrade -y && apt install -y \
     && make install \
     && ldconfig \
     && yes | zkg install seisollc/zeek-kafka --version v${ZEEK_KAFKA_VERSION} --user-var LIBRDKAFKA_ROOT=/usr/local \
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal \
+    && . "$HOME/.cargo/env" \
+    && yes | zkg install ASTRAOS-de/zeek-fluvio --version ${ZEEK_FLUVIO_VERSION} \
     && setcap cap_net_raw,cap_net_admin=+eip $(which zeek) \
+    && rm -rf "$HOME/.rustup" "$HOME/.cargo" \
     && apt-get remove --purge -y build-essential cmake curl pkg-config \
     && apt-get autoremove -y \
     && apt-get clean \
